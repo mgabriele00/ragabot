@@ -401,7 +401,7 @@ def main():
     df = load_forex_data(folder)
     
     # === Parametri Rolling ===
-    years = [2013]
+    years = [2019, 2020, 2021, 2022, 2023]
     train_years_window = 1
 
     parameter_ranges = {
