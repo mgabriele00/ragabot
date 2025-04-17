@@ -6,8 +6,6 @@ import os
 import itertools
 from typing import Dict, List, Tuple, Any, Optional, Union
 
-#coglione
-
 # === Parametri base ===
 INITIAL_CASH = 1000
 LEVERAGE = 100
