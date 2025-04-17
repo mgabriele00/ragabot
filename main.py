@@ -10,7 +10,6 @@ from typing import Dict, List, Tuple, Any, Optional, Union
 INITIAL_CASH = 1000
 LEVERAGE = 100
 SAVE_EVERY = 200  # salva ogni N combinazioni
-START_FROM = 4800  # da quale combinazione ripartire
 
 def load_forex_data(folder_path: str) -> pl.DataFrame:
     """Carica e prepara i dati Forex dai file CSV utilizzando Polars"""
@@ -259,16 +258,23 @@ def backtest_strategy(
 
 def save_results(buffer_orders: List, year: int, block_id: int, is_final: bool = False,
                 best_orders: Optional[List] = None) -> None:
-    """Salva i risultati del backtest in file pickle"""
+    """Salva i risultati del backtest in file pickle, organizzati per anno"""
     if not is_final:
-        partial_file = f"orders_{year}_block_{block_id}.pkl"
+        # Assicurati che la directory esista
+        os.makedirs(f"orders/partial/{year}", exist_ok=True)
+        
+        partial_file = f"orders/partial/{year}/orders_{year}_block_{block_id}.pkl"
         with open(partial_file, "wb") as f:
             pickle.dump(buffer_orders, f)
         print(f"💾 Salvato blocco intermedio: {partial_file}")
     else:
-        final_file = f"orders_{year}_train.pkl"
+        # Assicurati che la directory esista
+        os.makedirs("orders/final", exist_ok=True)
+        
+        final_file = f"orders/final/orders_{year}_train.pkl"
         with open(final_file, "wb") as f:
             pickle.dump(best_orders, f)
+        print(f"💾 Salvato risultato finale: {final_file}")
 
 def run_backtests(
     df_train: pl.DataFrame, 
@@ -291,11 +297,13 @@ def run_backtests(
     best_orders = None
     buffer_orders = []
     counter = 0
-    block_id = (START_FROM - 1) // SAVE_EVERY + 1
+    
+    # Determina l'ultimo blocco e il punto di partenza
+    block_id, start_from = get_last_block_id(year)
     
     for param in params_list:
         counter += 1
-        if counter < START_FROM:
+        if counter < start_from:
             continue
 
         print(
@@ -327,6 +335,57 @@ def run_backtests(
             
     return best_result, best_params, best_orders
 
+def get_last_block_id(year: int) -> Tuple[int, int]:
+    """
+    Determina l'ultimo blocco salvato e il punto di partenza per il backtest
+    
+    Args:
+        year: L'anno per cui cercare i blocchi salvati
+    
+    Returns:
+        Tuple con (block_id, start_from)
+    """
+    # Crea le directory se non esistono
+    os.makedirs(f"orders/partial/{year}", exist_ok=True)
+    os.makedirs("orders/final", exist_ok=True)
+    
+    # Cerca tutti i file di blocco per l'anno specificato
+    try:
+        block_files = [f for f in os.listdir(f"orders/partial/{year}") 
+                      if f.startswith(f"orders_{year}_block_") and f.endswith(".pkl")]
+    except FileNotFoundError:
+        # Se la directory non esiste ancora
+        block_files = []
+    
+    if not block_files:
+        # Nessun blocco trovato, iniziamo dall'inizio
+        print(f"🔍 Nessun blocco precedente trovato per l'anno {year}, inizio dal principio")
+        return 1, 1
+    
+    # Estrai i numeri di blocco dai nomi dei file
+    block_numbers = []
+    for file in block_files:
+        try:
+            block_num = int(file.split("_block_")[1].split(".")[0])
+            block_numbers.append(block_num)
+        except (ValueError, IndexError):
+            continue
+    
+    if not block_numbers:
+        return 1, 1
+    
+    # Trova l'ultimo blocco
+    last_block = max(block_numbers)
+    
+    # Calcola il punto di partenza
+    start_from = (last_block * SAVE_EVERY) + 1
+    
+    # Il prossimo blocco sarà last_block + 1
+    next_block_id = last_block + 1
+    
+    print(f"🔄 Riprendo dal blocco {next_block_id}, combinazione {start_from}")
+    return next_block_id, start_from
+
 def main():
     """Funzione principale che esegue il backtesting completo"""
     # === Range di iperparametri ===
@@ -343,7 +402,7 @@ def main():
     
     # === Parametri Rolling ===
     years = [2013]
-    train_years_window = 3
+    train_years_window = 1
 
     parameter_ranges = {
         "sl": sl_values,
