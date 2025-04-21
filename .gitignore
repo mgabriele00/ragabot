@@ -1,2 +1,5 @@
 # Ignora la cartella orders/partial e tutto il suo contenuto
 orders/partial/
+
+# Ignora file Ds store
+.DS_Store
