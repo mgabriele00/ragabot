@@ -8,6 +8,7 @@ from datetime import timedelta
 print("→ [Module] trading_bot.py loaded")
 
 # ─── costanti e parametri ─────────────────────────────────────────────────────
+LEVAREGE   = 100        # leva del broker
 SYMBOL    = "EURUSD"
 TIMEFRAME = mt5.TIMEFRAME_M1
 DEVIATION = 10        # slippage massimo
@@ -28,9 +29,9 @@ def init_mt5():
         raise SystemExit("❌ Impossibile inizializzare MT5: controlla che il terminal sia aperto e la Python API abilitata.")
     print("✅ MT5 initialized, version:", mt5.version())
 
-def compute_volume(balance, exposure):
+def compute_volume(balance, exposure, leverage):
     # 1 lot = 100 000 base currency
-    lots = (balance * exposure) / 100000
+    lots = (balance * exposure * leverage) / 100000
     return round(lots, 2)
 
 def generate_signals(rates, params: dict):
@@ -120,7 +121,7 @@ def main():
                 # 3) calcola volume
                 info    = mt5.account_info()
                 balance = info.balance
-                vol     = compute_volume(balance, PARAMS["exposure"])
+                vol     = compute_volume(balance, PARAMS["exposure"], LEVAREGE)
                 print(f"   Balance={balance:.2f}, exposure={PARAMS['exposure']} → volume={vol} lot")
 
                 # 4) prendi prezzi correnti
