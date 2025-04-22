@@ -3,3 +3,6 @@ orders/partial/
 
 # Ignora file Ds store
 .DS_Store
+
+# Ignora .DS_Store in qualsiasi sottocartella
+**/.DS_Store
