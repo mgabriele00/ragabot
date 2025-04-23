@@ -86,25 +86,39 @@ def determine_order_action(request: SignalRequest, params: dict) -> SignalRespon
         symbol="EURUSD",
         type="buy",
         volume=0.1,
-        open_price=1.08500,
-        stop_loss=1.08000,
-        take_profit=1.09500,
+        stop_loss=1.01000,
+        take_profit=1.19500,
         comment="Entry signal based on RSI/BB"
     )
 
     # Creazione di un'istanza CloseOrder moccata
     mock_close_order = CloseOrder(
         symbol="EURUSD",
-        ticket=146134296, # Ticket della posizione da chiudere
-        volume=0.01, # Volume da chiudere (potrebbe essere l'intero volume della posizione)
-        close_price=1.09000, # Prezzo di chiusura attuale
+        ticket=146347654, # Ticket della posizione da chiudere
         comment="Exit signal based on RSI/BB"
     )
+    
+    mock_close_order1 = CloseOrder(
+        symbol="EURUSD",
+        ticket=146347655, # Ticket della posizione da chiudere
+        comment="Exit signal based on RSI/BB"
+    )
+     
+    mock_close_order2 = CloseOrder(
+        symbol="EURUSD",
+        ticket=146352290, # Ticket della posizione da chiudere
+        comment="Exit signal based on RSI/BB"
+    )
+     
+    mock_close_order3 = CloseOrder(
+        symbol="EURUSD",
+        ticket=146352294, # Ticket della posizione da chiudere
+        comment="Exit signal based on RSI/BB")
 
     # Creazione di un'istanza SignalResponse moccata
     mock_signal_response = SignalResponse(
         orders_to_open=[mock_open_order, mock_open_order],
-        orders_to_close=[mock_close_order]
+        orders_to_close=[mock_close_order, mock_close_order1, mock_close_order2, mock_close_order3],
     )
     
     return mock_signal_response

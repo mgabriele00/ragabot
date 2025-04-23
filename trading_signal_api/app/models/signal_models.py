@@ -28,7 +28,6 @@ class OpenOrder(BaseModel):
     symbol: str
     type: str # "buy" o "sell"
     volume: float
-    open_price: float
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
     comment: Optional[str] = None # Commento opzionale per l'ordine
@@ -37,7 +36,6 @@ class CloseOrder(BaseModel):
     """Modello per chiudere un ordine."""
     symbol: str
     ticket: int
-    volume: Optional[float] # Volume da chiudere, se necessario
     comment: Optional[str] = None # Commento opzionale per la chiusura    
     
 class SignalRequest(BaseModel): # Rinominato da SignalRequest
