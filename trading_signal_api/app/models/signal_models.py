@@ -37,8 +37,7 @@ class CloseOrder(BaseModel):
     """Modello per chiudere un ordine."""
     symbol: str
     ticket: int
-    volume: float # Volume da chiudere, se necessario
-    close_price: Optional[float] = None # Prezzo di chiusura, se necessario
+    volume: Optional[float] # Volume da chiudere, se necessario
     comment: Optional[str] = None # Commento opzionale per la chiusura    
     
 class SignalRequest(BaseModel): # Rinominato da SignalRequest
