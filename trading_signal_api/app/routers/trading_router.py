@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from ..config.settings import PARAMS
 # Importa la nuova funzione di servizio, rimuovi generate_signals_api
-from ..services.trading_logic import determine_order_action
+from ..services.trading_service import determine_order_action
 from ..models.signal_models import SignalResponse, SignalRequest
 
 router = APIRouter()

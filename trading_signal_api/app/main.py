@@ -7,7 +7,7 @@ from starlette.responses import Response
 import json
 import time # Per timestamp nel log
 
-from .routers import signal
+from .routers import trading_router
 
 app = FastAPI(title="Trading Signal API")
 
@@ -46,7 +46,7 @@ class LogRequestBodyMiddleware(BaseHTTPMiddleware):
 # Aggiungi il middleware all'applicazione
 app.add_middleware(LogRequestBodyMiddleware)
 
-app.include_router(signal.router, prefix="/signal", tags=["signals"])
+app.include_router(trading_router.router, prefix="/v1/trading", tags=["signals"])
 
 # Nota: Se hai bisogno di eseguire codice all'avvio (come caricare modelli ML),
 # puoi usare gli eventi startup/shutdown di FastAPI.
