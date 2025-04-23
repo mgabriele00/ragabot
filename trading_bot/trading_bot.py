@@ -107,8 +107,8 @@ def main():
                 last_min = now.minute
                 print(f"\n[{now:%Y-%m-%d %H:%M:%S}] === New minute tick ===")
                 # 1) scarica dati da inizio anno
-                start = datetime.now() - timedelta(hours=1)
-                rates = mt5.copy_rates_range(SYMBOL, TIMEFRAME, start, now)
+                num_bars_needed = 100 # Numero sufficiente per calcolare indicatori (RSI(14), BBands(14), etc.)
+                rates = mt5.copy_rates_from_pos(SYMBOL, TIMEFRAME, 0, num_bars_needed)
                 if len(rates) == 0:
                     print("   [Warning] Nessun dato ricevuto, salto ciclo")
                     time.sleep(1)

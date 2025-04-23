@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  mt5:
+    platform: linux/amd64         # forza emulazione amd64 su Mac ARM
+    build: .
+    container_name: mt5
+    ports:
+      - "5901:5901"               # TigerVNC
+      - "6080:6080"               # noVNC (HTML5)
+    environment:
+      # Password VNC/noVNC (variabile base image)
+      - VNC_PASSWORD=${VNC_PASSWORD:-changeme}
+      # Risoluzione desktop (es.: 1440x900)
+      - VNC_RESOLUTION=${VNC_RESOLUTION:-1280x800}
+    volumes:
+      # persiste il prefix Wine con MetaTrader 5
+      - mt5-data:/home/headless/.wine
+    restart: unless-stopped
+
+volumes:
+  mt5-data:
