@@ -71,6 +71,11 @@ def generate_signals_api(rates_list: List[BarData], params: dict) -> Tuple[bool,
     print(f"   Latest valid tick signals (@ index {last_valid_idx}): entry={last_entry}, exit={last_exit}")
     return last_entry, last_exit
 
+def compute_volume(balance: float, exposure: float, leverage: float = 100, lot_size: float = 100000) -> float:
+    """
+    Calcola volume in lotti in base a balance, esposizione e leva.
+    """
+    return round((balance * exposure * leverage) / lot_size, 2)
 
 def determine_order_action(request: SignalRequest, params: dict) -> SignalResponse:
     """
@@ -82,43 +87,52 @@ def determine_order_action(request: SignalRequest, params: dict) -> SignalRespon
     last_entry, last_exit = generate_signals_api(request.bars, params)
 
    # Creazione di un'istanza OpenOrder moccata
-    mock_open_order = OpenOrder(
-        symbol="EURUSD",
-        type="buy",
-        volume=0.1,
-        stop_loss=1.01000,
-        take_profit=1.19500,
-        comment="Entry signal based on RSI/BB"
-    )
+    orders_to_open = []
+    orders_to_close = []
 
-    # Creazione di un'istanza CloseOrder moccata
-    mock_close_order = CloseOrder(
-        symbol="EURUSD",
-        ticket=146347654, # Ticket della posizione da chiudere
-        comment="Exit signal based on RSI/BB"
-    )
-    
-    mock_close_order1 = CloseOrder(
-        symbol="EURUSD",
-        ticket=146347655, # Ticket della posizione da chiudere
-        comment="Exit signal based on RSI/BB"
-    )
-     
-    mock_close_order2 = CloseOrder(
-        symbol="EURUSD",
-        ticket=146352290, # Ticket della posizione da chiudere
-        comment="Exit signal based on RSI/BB"
-    )
-     
-    mock_close_order3 = CloseOrder(
-        symbol="EURUSD",
-        ticket=146352294, # Ticket della posizione da chiudere
-        comment="Exit signal based on RSI/BB")
+    # Ultimo prezzo disponibile
+    last_price = request.bars[-1].close
 
-    # Creazione di un'istanza SignalResponse moccata
-    mock_signal_response = SignalResponse(
-        orders_to_open=[mock_open_order, mock_open_order],
-        orders_to_close=[mock_close_order, mock_close_order1, mock_close_order2, mock_close_order3],
-    )
+    has_position = len(request.open_positions) > 0
     
-    return mock_signal_response
+    balance = request.balance
+    exposure = params["exposure"]
+    sl_pct = params["sl"]
+    tp_pct = params["tp"]
+
+    volume = compute_volume(balance, exposure)
+    has_position = len(request.open_positions) > 0
+
+    # === ENTRY === #
+
+    if not has_position and last_entry:
+        open_order = OpenOrder(
+            symbol=request.symbol,
+            type="buy",
+            volume= volume,
+            open_price= last_price,
+            stop_loss= last_price * (1 - sl_pct),
+            take_profit = last_price * (1 + tp_pct),
+            comment="Prova"
+        )
+        orders_to_open.append(open_order)
+
+    # === EXIT === #
+    if has_position and last_exit:
+        for pos in request.open_positions:
+            close_order= CloseOrder(
+                symbol=pos.symbol,
+                ticket=pos.ticket,
+                volume=pos.volume,
+                close_price=last_price,
+                comment="Exit signal (MACD)"
+            )
+            orders_to_close.append(close_order)
+   
+    if not orders_to_open and not orders_to_close:
+        print("Nessun segnale attivo per apertura o chiusura")
+
+    return SignalResponse(
+        orders_to_open=orders_to_open,
+        orders_to_close=orders_to_close
+    )

@@ -44,7 +44,7 @@ class SignalRequest(BaseModel): # Rinominato da SignalRequest
     bars: List[BarData] = Field(..., min_items=1) # Richiede almeno 15 tick per calcolare RSI(14)
     balance: float
     open_positions: List[OpenPosition] = [] # Lista di posizioni aperte    
-
+    
 class SignalResponse(BaseModel):
     """Modello per la risposta dell'API."""
     orders_to_open: List[OpenOrder] = [] # Lista di ordini da aprire

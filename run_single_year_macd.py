@@ -4,11 +4,12 @@ import numpy as np
 import pandas as pd
 import polars as pl
 import talib
+import matplotlib.pyplot as plt
 from typing import Any, Dict, List, Tuple
 
 # === PARAMETRI INIZIALI ===
 FOLDER = './dati_forex/EURUSD/'
-YEARS_INPUT = [2013]  # può essere [2013, 2024] oppure [2013, 2014, 2015]
+YEARS_INPUT = [2013]
 MERGE_YEARS = False
 PARAMS = {
     "sl": 0.006,
@@ -21,11 +22,11 @@ PARAMS = {
 INITIAL_CASH = 1000
 LEVERAGE = 100
 
-# === FUNZIONI DI UTILITÀ ===
+# === UTILITY ===
 def resolve_years(input: Any) -> List[int]:
     if isinstance(input, int):
         return [input]
-    elif isinstance(input, list) and len(input) == 2 and all(isinstance(i, int) for i in input):
+    elif isinstance(input, list) and len(input) == 2:
         return list(range(input[0], input[1] + 1))
     elif isinstance(input, list):
         return input
@@ -51,6 +52,7 @@ def load_forex_data(folder: str, years: List[int]) -> pl.DataFrame:
         dfs.append(df.select(["Datetime", "Open", "High", "Low", "Close"]))
     return pl.concat(dfs).sort("Datetime")
 
+# === INDICATORI ===
 def calculate_indicators(df: pl.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     close = df["Close"].to_numpy()
     open_ = df["Open"].to_numpy()
@@ -67,18 +69,26 @@ def calculate_indicators(df: pl.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.n
         bearish |= values < 0
     return time, rsi, bullish, bearish
 
-def generate_signals(close: np.ndarray, rsi: np.ndarray, bullish: np.ndarray, bearish: np.ndarray, params: Dict[str, Any]):
+def generate_signals(close: np.ndarray, rsi: np.ndarray, bullish: np.ndarray,
+                     params: Dict[str, Any], high: np.ndarray, low: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     bb_std = params["bb_std"]
-    rsi_entry = params["rsi_entry"]
-    rsi_exit = params["rsi_exit"]
     upper, middle, lower = talib.BBANDS(close, timeperiod=14, nbdevup=bb_std, nbdevdn=bb_std)
-    entries = (rsi < rsi_entry) & (close < lower) & bullish
-    exits = (rsi > rsi_exit) & (close > upper) & bearish
+    macd, macdsignal, _ = talib.MACD(close, fastperiod=12, slowperiod=26, signalperiod=9)
+
+    entries = (rsi < params["rsi_entry"]) & (close < lower) & bullish
+    exits = macd < macdsignal
+
     return entries, exits
 
-def backtest(df: pl.DataFrame, time: np.ndarray, rsi: np.ndarray, bullish: np.ndarray, bearish: np.ndarray, params: Dict[str, Any]) -> Tuple[float, List[Dict]]:
+# === BACKTEST ===
+def backtest(df: pl.DataFrame, time: np.ndarray, rsi: np.ndarray,
+             bullish: np.ndarray, bearish: np.ndarray, params: Dict[str, Any]) -> Tuple[float, List[Dict]]:
     close = df["Close"].to_numpy()
-    entries, exits = generate_signals(close, rsi, bullish, bearish, params)
+    high = df["High"].to_numpy()
+    low = df["Low"].to_numpy()
+
+    entries, exits = generate_signals(close, rsi, bullish, params, high, low)
+
     cash = INITIAL_CASH
     in_position = False
     orders = []
@@ -127,6 +137,7 @@ def backtest(df: pl.DataFrame, time: np.ndarray, rsi: np.ndarray, bullish: np.nd
 
     return cash, orders
 
+# === SALVATAGGIO ===
 def save_results(orders: List[Dict], name: str):
     os.makedirs("orders/final", exist_ok=True)
     with open(f"orders/final/orders_{name}_train.pkl", "wb") as f:
@@ -163,76 +174,47 @@ if __name__ == "__main__":
     for y, count in order_counts.items():
         print(f"🗓️ {y}: {count} ordini")
 
+    os.makedirs("features", exist_ok=True)
 
-import matplotlib.pyplot as plt
-import pandas as pd
+    for year in order_counts:
+        pkl_path = f"orders/final/orders_{year}_train.pkl"
+        if not os.path.exists(pkl_path):
+            continue
 
-# === Salva capitale finale per anno
-import matplotlib.pyplot as plt
-import pandas as pd
+        print(f"\n📉 Grafico Entry/Exit + Ichimoku - Anno {year}")
+        with open(pkl_path, "rb") as f:
+            orders = pickle.load(f)
 
-# === GRAFICO: Andamento Capitale nel Tempo ===
-os.makedirs("features", exist_ok=True)
+        if not orders:
+            continue
 
-for year in order_counts:
-    pkl_path = f"orders/final/orders_{year}_train.pkl"
-    if not os.path.exists(pkl_path):
-        continue
+        df_orders = pd.DataFrame(orders)
+        df_orders["Entry Time"] = pd.to_datetime(df_orders["Entry Time"])
+        df_orders["Exit Time"] = pd.to_datetime(df_orders["Exit Time"])
 
-    with open(pkl_path, "rb") as f:
-        orders = pickle.load(f)
+        anno = int(str(year).split("_")[0])
+        df_price = load_forex_data(FOLDER, [anno]).to_pandas()
+        df_price["Datetime"] = pd.to_datetime(df_price["Datetime"])
 
-    if not orders:
-        continue
+        span_a, span_b = calculate_ichimoku(
+            df_price["High"].values,
+            df_price["Low"].values,
+            df_price["Close"].values
+        )
 
-    df = pd.DataFrame(orders)
-    df["Exit Time"] = pd.to_datetime(df["Exit Time"])
+        plt.figure(figsize=(14, 6))
+        plt.plot(df_price["Datetime"], df_price["Close"], label="EUR/USD Close", color="gray", linewidth=1)
+        plt.fill_between(df_price["Datetime"], span_a, span_b, where=span_a >= span_b, color="green", alpha=0.2, label="Kumo Bullish")
+        plt.fill_between(df_price["Datetime"], span_a, span_b, where=span_a < span_b, color="red", alpha=0.2, label="Kumo Bearish")
 
-    plt.figure(figsize=(12, 5))
-    plt.plot(df["Exit Time"], df["Cash"], label=f"Capitale ({year})")
-    plt.title(f"📈 Andamento del Capitale - Anno {year}")
-    plt.xlabel("Data")
-    plt.ylabel("Capitale (€)")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.savefig(f"features/curva_capitale_{year}.png")
-    plt.show()  # Mostra il grafico interattivo
+        plt.scatter(df_orders["Entry Time"], df_orders["Entry Price"], color="green", marker="^", label="Entry", s=30)
+        plt.scatter(df_orders["Exit Time"], df_orders["Exit Price"], color="red", marker="v", label="Exit", s=30)
 
-import matplotlib.pyplot as plt
-
-# === GRAFICO ENTRY/EXIT con prezzi EUR/USD ===
-for year in order_counts:
-    pkl_path = f"orders/final/orders_{year}_train.pkl"
-    if not os.path.exists(pkl_path):
-        continue
-
-    print(f"\n📉 Generazione grafico prezzi + segnali per anno {year}...")
-    with open(pkl_path, "rb") as f:
-        orders = pickle.load(f)
-
-    if not orders:
-        continue
-
-    df_orders = pd.DataFrame(orders)
-    df_orders["Entry Time"] = pd.to_datetime(df_orders["Entry Time"])
-    df_orders["Exit Time"] = pd.to_datetime(df_orders["Exit Time"])
-
-    anno = int(str(year).split("_")[0])  # compatibile anche con '2013_2014'
-    df_price = load_forex_data(FOLDER, [anno]).to_pandas()
-
-    df_price["Datetime"] = pd.to_datetime(df_price["Datetime"])
-
-    plt.figure(figsize=(14, 6))
-    plt.plot(df_price["Datetime"], df_price["Close"], label="EUR/USD Close", color="gray", linewidth=1)
-
-    plt.scatter(df_orders["Entry Time"], df_orders["Entry Price"], color="green", marker="^", label="Entry", s=20)
-    plt.scatter(df_orders["Exit Time"], df_orders["Exit Price"], color="red", marker="v", label="Exit", s=20)
-
-    plt.title(f"📍 Entry & Exit su EUR/USD - Anno {year}")
-    plt.xlabel("Data")
-    plt.ylabel("Prezzo EUR/USD")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.savefig(f"features/entry_exit_aligned_{year}.png")
-    plt.show()
+        plt.title(f"📍 Entry & Exit con Ichimoku - Anno {year}")
+        plt.xlabel("Data")
+        plt.ylabel("Prezzo EUR/USD")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(f"features/entry_exit_ichimoku_{year}.png")
+        plt.show()

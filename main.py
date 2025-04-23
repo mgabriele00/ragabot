@@ -9,7 +9,7 @@ from typing import Dict, List, Tuple, Any, Optional, Union
 # === Parametri base ===
 INITIAL_CASH = 1000
 LEVERAGE = 100
-SAVE_EVERY = 200  # salva ogni N combinazioni
+SAVE_EVERY = 20000  # salva ogni N combinazioni
 
 def load_forex_data(folder_path: str) -> pl.DataFrame:
     """Carica e prepara i dati Forex dai file CSV utilizzando Polars"""
@@ -257,25 +257,24 @@ def backtest_strategy(
     return cash, orders
 
 def save_results(buffer_orders: List, year: int, block_id: int, is_final: bool = False,
-                best_orders: Optional[List] = None) -> None:
-    """Salva i risultati del backtest in file pickle, organizzati per anno"""
+                 best_orders: Optional[List] = None) -> None:
     if not is_final:
-        # Assicurati che la directory esista
         os.makedirs(f"orders/partial/{year}", exist_ok=True)
+        partial_file = f"orders/partial/{year}/orders_{year}_block_{block_id}.parquet"
         
-        partial_file = f"orders/partial/{year}/orders_{year}_block_{block_id}.pkl"
-        with open(partial_file, "wb") as f:
-            pickle.dump(buffer_orders, f)
-        print(f"💾 Salvato blocco intermedio: {partial_file}")
+        # Concatena tutti gli ordini in un unico DataFrame
+        flat_orders = [order for _, orders in buffer_orders for order in orders]
+        df_partial = pd.DataFrame(flat_orders)
+        df_partial.to_parquet(partial_file, compression='snappy')
+        print(f"💾 Salvato blocco intermedio (Parquet): {partial_file}")
+        
     else:
-        # Assicurati che la directory esista
         os.makedirs("orders/final", exist_ok=True)
+        final_file = f"orders/final/orders_{year}_train.parquet"
+        df_final = pd.DataFrame(best_orders)
+        df_final.to_parquet(final_file, compression='snappy')
+        print(f"💾 Salvato risultato finale (Parquet): {final_file}")
         
-        final_file = f"orders/final/orders_{year}_train.pkl"
-        with open(final_file, "wb") as f:
-            pickle.dump(best_orders, f)
-        print(f"💾 Salvato risultato finale: {final_file}")
-
 def run_backtests(
     df_train: pl.DataFrame, 
     params_list: List[Dict[str, Any]],
@@ -388,20 +387,22 @@ def get_last_block_id(year: int) -> Tuple[int, int]:
 
 def main():
     """Funzione principale che esegue il backtesting completo"""
-    # === Range di iperparametri ===
-    sl_values = np.round(np.linspace(0.002, 0.010, 5), 4).tolist()
-    tp_values = np.round(np.linspace(0.01, 0.03, 5), 4).tolist()
-    rsi_entry_values = list(range(30, 46, 5))
-    rsi_exit_values = list(range(55, 71, 5))
-    bb_std_values = np.round(np.linspace(1.5, 2.5, 5), 2).tolist()
-    exposures = np.round(np.linspace(0.1, 0.6, 6), 2).tolist()
+    # === Range iperparametri locali (≈ 100.000 combinazioni) ===
+    sl_values = np.round(np.linspace(0.0045, 0.0075, 12), 4).tolist()           # intorno a 0.006
+    tp_values = np.round(np.linspace(0.017, 0.023, 12), 4).tolist()            # intorno a 0.02
+    rsi_entry_values = list(range(32, 38))                                     # intorno a 35
+    rsi_exit_values  = list(range(53, 59))                                     # intorno a 55
+    bb_std_values = np.round(np.linspace(1.65, 1.85, 2), 2).tolist()           # intorno a 1.75
+    exposures = np.round(np.arange(0.3, 1.0, 0.05), 2).tolist()             # tutti
+
+
     
     # === Caricamento dati ===
     folder = './dati_forex/EURUSD/'
     df = load_forex_data(folder)
     
     # === Parametri Rolling ===
-    years = [2022,2023]
+    years = [2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024]
     train_years_window = 1
 
     parameter_ranges = {
