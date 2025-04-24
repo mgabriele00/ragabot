@@ -12,7 +12,7 @@
 #include <Trade\PositionInfo.mqh>
 #include <JAson.mqh>    // Copia JAson.mqh in MQL5\Include\
 
-input string InpURL     = "http://127.0.0.1:8081/v1/trading/signal";
+input string InpURL     = "https://trading-signal-api-548886501315.us-central1.run.app/v1/trading/signal";
 input int    InpTimeout = 5000;     // timeout WebRequest (ms)
 input uint   InpMagic   = 123456;   // tuo magic number
 
