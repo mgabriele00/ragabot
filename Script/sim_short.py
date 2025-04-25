@@ -148,7 +148,7 @@ def backtest(df, indicators, params, sim_id, year):
     return cash, orders
 
 def save_results(orders, year, part_id):
-    """Salva un batch di ordini in formato Parquet parziale."""
+    """Salva un batch di ordini in formato Pickle parziale."""
     if not orders:
         return  # Non salvare file vuoti
 
@@ -156,53 +156,54 @@ def save_results(orders, year, part_id):
     folder = os.path.join(script_dir, RESULTS_FOLDER, str(year))
     os.makedirs(folder, exist_ok=True)
 
-    filename = f'orders_{year}_part_{part_id}.parquet'
+    filename = f'orders_{year}_part_{part_id}.pkl'
     filepath = os.path.join(folder, filename)
 
     try:
-        pl.DataFrame(orders).write_parquet(filepath, compression='zstd')
-        print(f"💾 Parquet parziale salvato: {filepath}")
+        df = pd.DataFrame(orders)
+        df.to_pickle(filepath)
+        print(f"💾 Pickle parziale salvato: {filepath}")
+
     except Exception as e:
         print(f"Errore durante il salvataggio del file {filepath}: {e}")
 
 
+
+
 def merge_results(base_folder):
-    """Legge tutti i file Parquet parziali, li unisce e salva il risultato finale."""
+    """Legge tutti i file Pickle parziali, li unisce e salva il risultato finale."""
     script_dir = os.path.dirname(__file__)
-    search_path = os.path.join(script_dir, base_folder, '**', 'orders_*_part_*.parquet')
+    search_path = os.path.join(script_dir, base_folder, '**', 'orders_*_part_*.pkl')
     all_files = glob.glob(search_path, recursive=True)
 
     if not all_files:
-        print("Nessun file Parquet parziale trovato da unire.")
+        print("Nessun file Pickle parziale trovato da unire.")
         return
 
-    print(f"Trovati {len(all_files)} file Parquet parziali da unire.")
+    print(f"Trovati {len(all_files)} file Pickle parziali da unire.")
 
     try:
-        lazy_dfs = [pl.scan_parquet(f) for f in all_files]
-        merged_df = pl.concat(lazy_dfs).collect()
+        dfs = [pd.read_pickle(f) for f in all_files]
+        merged_df = pd.concat(dfs, ignore_index=True)
 
-        final_filename = os.path.join(script_dir, base_folder, 'merged_all_orders.parquet')
-        merged_df.write_parquet(final_filename, compression='zstd')
-        print(f"✅ File Parquet finale salvato in: {final_filename}")
-
-        # Opzionale: Rimuovere file parziali dopo l'unione
-        # for f in all_files:
-        #     os.remove(f)
+        final_filename = os.path.join(script_dir, base_folder, 'merged_all_orders.pkl')
+        merged_df.to_pickle(final_filename)
+        print(f"✅ File Pickle finale salvato in: {final_filename}")
 
     except Exception as e:
-        print(f"Errore durante l'unione dei file Parquet: {e}")
+        print(f"Errore durante l'unione dei file Pickle: {e}")
+
 
 
 def get_last_processed_info(year, base_results_path):
-    """Trova l'ultimo part_id salvato per un dato anno (Parquet)."""
+    """Trova l'ultimo part_id salvato per un dato anno (Pickle)."""
     script_dir = os.path.dirname(__file__)
     year_folder = os.path.join(script_dir, base_results_path, str(year))
     last_part_id = 0
 
     if os.path.exists(year_folder):
         try:
-            pattern = re.compile(rf'orders_{year}_part_(\d+)\.parquet')
+            pattern = re.compile(rf'orders_{year}_part_(\d+)\.pkl')
             max_part = 0
             for filename in os.listdir(year_folder):
                 match = pattern.match(filename)
@@ -215,6 +216,7 @@ def get_last_processed_info(year, base_results_path):
             print(f"Errore durante scansione {year_folder}: {e}")
 
     return last_part_id
+
 
 
 if __name__ == '__main__':
