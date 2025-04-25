@@ -22,7 +22,7 @@ PARAM_GRID = {
     "atr_factor": [1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5]
 }
 
-YEARS_INPUT = [2013, 2014, 2015,2016,2017,2018,2019,2020,2021,2022,2023,2024]
+YEARS_INPUT = [2015]
 
 def load_forex_data(year):
     script_dir = os.path.dirname(__file__)
@@ -148,82 +148,61 @@ def backtest(df, indicators, params, sim_id, year):
     return cash, orders
 
 def save_results(orders, year, part_id):
-    """Salva un batch di ordini in un file CSV parziale."""
+    """Salva un batch di ordini in formato Parquet parziale."""
     if not orders:
-        return # Non salvare file vuoti
-    # Assicurati che il percorso usi la cartella base RESULTS_FOLDER e sia relativo allo script
+        return  # Non salvare file vuoti
+
     script_dir = os.path.dirname(__file__)
     folder = os.path.join(script_dir, RESULTS_FOLDER, str(year))
     os.makedirs(folder, exist_ok=True)
-    filename = f'orders_{year}_part_{part_id}.csv'
+
+    filename = f'orders_{year}_part_{part_id}.parquet'
     filepath = os.path.join(folder, filename)
-    # Usa Pandas per salvare, potrebbe essere più semplice per liste di dizionari
+
     try:
-        pd.DataFrame(orders).to_csv(filepath, index=False)
-        print(f"💾 CSV parziale salvato: {filepath}")
+        pl.DataFrame(orders).write_parquet(filepath, compression='zstd')
+        print(f"💾 Parquet parziale salvato: {filepath}")
     except Exception as e:
         print(f"Errore durante il salvataggio del file {filepath}: {e}")
 
+
 def merge_results(base_folder):
-    """Legge tutti i file CSV parziali, li unisce e salva il risultato finale."""
+    """Legge tutti i file Parquet parziali, li unisce e salva il risultato finale."""
     script_dir = os.path.dirname(__file__)
-    search_path = os.path.join(script_dir, base_folder, '**', 'orders_*_part_*.csv')
-    all_files = glob.glob(search_path, recursive=True) # Cerca ricorsivamente
+    search_path = os.path.join(script_dir, base_folder, '**', 'orders_*_part_*.parquet')
+    all_files = glob.glob(search_path, recursive=True)
 
     if not all_files:
-        print("Nessun file parziale trovato da unire.")
+        print("Nessun file Parquet parziale trovato da unire.")
         return
 
-    print(f"Trovati {len(all_files)} file parziali da unire.")
+    print(f"Trovati {len(all_files)} file Parquet parziali da unire.")
 
-    # Usa Polars per efficienza se i file sono grandi
     try:
-        # Leggi tutti i file CSV in un unico LazyFrame
-        lazy_dfs = [pl.scan_csv(f) for f in all_files]
-        # Concatena tutti i LazyFrame
-        merged_lf = pl.concat(lazy_dfs)
-        # Esegui il calcolo e ottieni il DataFrame finale
-        merged_df = merged_lf.collect()
+        lazy_dfs = [pl.scan_parquet(f) for f in all_files]
+        merged_df = pl.concat(lazy_dfs).collect()
 
-        # Salva il DataFrame unito
-        final_filename = os.path.join(script_dir, base_folder, 'merged_all_orders.csv')
-        merged_df.write_csv(final_filename)
-        print(f"✅ File CSV finali uniti e salvati in: {final_filename}")
+        final_filename = os.path.join(script_dir, base_folder, 'merged_all_orders.parquet')
+        merged_df.write_parquet(final_filename, compression='zstd')
+        print(f"✅ File Parquet finale salvato in: {final_filename}")
 
-        # Opzionale: Rimuovere i file parziali dopo l'unione
+        # Opzionale: Rimuovere file parziali dopo l'unione
         # for f in all_files:
-        #     try:
-        #         os.remove(f)
-        #         print(f"🗑️ File parziale rimosso: {f}")
-        #     except OSError as e:
-        #         print(f"Errore nella rimozione del file {f}: {e}")
+        #     os.remove(f)
 
     except Exception as e:
-        print(f"Errore durante l'unione dei file CSV con Polars: {e}")
-        print("Tentativo di fallback con Pandas...")
-        # Fallback con Pandas se Polars fallisce
-        try:
-            df_list = [pd.read_csv(f) for f in all_files]
-            if not df_list:
-                 print("Nessun DataFrame letto con Pandas.")
-                 return
-            merged_df_pd = pd.concat(df_list, ignore_index=True)
-            final_filename = os.path.join(script_dir, base_folder, 'merged_all_orders_pandas.csv')
-            merged_df_pd.to_csv(final_filename, index=False)
-            print(f"✅ File CSV finali uniti (con Pandas) e salvati in: {final_filename}")
-            # Opzionale: Rimuovere i file parziali qui se il merge con Pandas ha successo
-        except Exception as e_pd:
-            print(f"Errore anche durante l'unione con Pandas: {e_pd}")
+        print(f"Errore durante l'unione dei file Parquet: {e}")
+
 
 def get_last_processed_info(year, base_results_path):
-    """Trova l'ultimo part_id salvato per un dato anno."""
+    """Trova l'ultimo part_id salvato per un dato anno (Parquet)."""
     script_dir = os.path.dirname(__file__)
     year_folder = os.path.join(script_dir, base_results_path, str(year))
     last_part_id = 0
+
     if os.path.exists(year_folder):
         try:
-            # Cerca file nel formato orders_YYYY_part_N.csv
-            pattern = re.compile(rf'orders_{year}_part_(\d+)\.csv')
+            pattern = re.compile(rf'orders_{year}_part_(\d+)\.parquet')
             max_part = 0
             for filename in os.listdir(year_folder):
                 match = pattern.match(filename)
@@ -233,8 +212,10 @@ def get_last_processed_info(year, base_results_path):
                         max_part = part_num
             last_part_id = max_part
         except Exception as e:
-            print(f"Errore durante la scansione della cartella {year_folder} per i file parziali: {e}")
+            print(f"Errore durante scansione {year_folder}: {e}")
+
     return last_part_id
+
 
 if __name__ == '__main__':
     script_dir = os.path.dirname(__file__)
