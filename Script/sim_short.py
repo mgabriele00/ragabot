@@ -4,11 +4,14 @@ import numpy as np
 import talib
 import itertools
 import pandas as pd
+import glob # Importa il modulo glob
+import re # Importa il modulo re per le espressioni regolari
 
 INITIAL_CASH = 1000
 LEVERAGE = 100
-SAVE_EVERY = 20000
-FOLDER = './dati_forex/EURUSD/'
+SAVE_EVERY = 100 # Modificato a 100
+FOLDER = '../dati_forex/EURUSD/'
+RESULTS_FOLDER = 'orders/sim_short' # Definisci la cartella dei risultati principali
 
 PARAM_GRID = {
     "rsi_entry": list(range(30, 46)),
@@ -22,18 +25,44 @@ PARAM_GRID = {
 YEARS_INPUT = [2013, 2014, 2015,2016,2017,2018,2019,2020,2021,2022,2023,2024]
 
 def load_forex_data(year):
-    files = sorted([f for f in os.listdir(FOLDER) if f.endswith('.csv') and str(year) in f])
+    script_dir = os.path.dirname(__file__)
+    # Costruisci il percorso completo alla cartella FOLDER
+    folder_path = os.path.join(script_dir, FOLDER)
+    try:
+        # Lista i file nella cartella specificata
+        files_in_folder = os.listdir(folder_path)
+        # Filtra i file CSV per l'anno specificato
+        files = sorted([f for f in files_in_folder if f.endswith('.csv') and str(year) in f])
+    except FileNotFoundError:
+        print(f"ERRORE: La cartella dei dati '{folder_path}' non è stata trovata.")
+        return pl.DataFrame() # Restituisce DataFrame vuoto
+
+    if not files:
+        print(f"Attenzione: Nessun file CSV trovato per l'anno {year} nella cartella {folder_path}")
+        return pl.DataFrame()
+
     dfs = []
     for file in files:
-        df = pl.read_csv(
-            os.path.join(FOLDER, file), has_header=False,
-            new_columns=['Date', 'Time', 'Open', 'High', 'Low', 'Close']
-        ).with_columns(
-            pl.concat_str(["Date", pl.lit(" "), "Time"])
-            .str.strptime(pl.Datetime, "%Y.%m.%d %H:%M")
-            .alias("Datetime")
-        ).select(["Datetime", "Open", "High", "Low", "Close"])
-        dfs.append(df)
+        full_path = os.path.join(folder_path, file)
+        try:
+            df = pl.read_csv(
+                full_path, has_header=False,
+                new_columns=['Date', 'Time', 'Open', 'High', 'Low', 'Close']
+            ).with_columns(
+                pl.concat_str([pl.col("Date"), pl.lit(" "), pl.col("Time")])
+                .str.strptime(pl.Datetime, "%Y.%m.%d %H:%M", strict=False) # Usa strict=False per più tolleranza
+                .alias("Datetime")
+            ).select(["Datetime", "Open", "High", "Low", "Close"])
+            dfs.append(df)
+        except Exception as e:
+            print(f"Errore durante la lettura o elaborazione del file {full_path}: {e}")
+            # Puoi decidere se continuare con gli altri file o fermarti
+            continue # Salta questo file e continua con il prossimo
+
+    if not dfs:
+         print(f"Nessun DataFrame caricato con successo per l'anno {year}.")
+         return pl.DataFrame()
+
     return pl.concat(dfs).sort("Datetime")
 
 def generate_combinations(grid):
@@ -118,28 +147,165 @@ def backtest(df, indicators, params, sim_id, year):
 
     return cash, orders
 
-def save_results(orders, year, idx):
-    folder = f'orders/sim_short/{year}'
+def save_results(orders, year, part_id):
+    """Salva un batch di ordini in un file CSV parziale."""
+    if not orders:
+        return # Non salvare file vuoti
+    # Assicurati che il percorso usi la cartella base RESULTS_FOLDER e sia relativo allo script
+    script_dir = os.path.dirname(__file__)
+    folder = os.path.join(script_dir, RESULTS_FOLDER, str(year))
     os.makedirs(folder, exist_ok=True)
-    pd.DataFrame(orders).to_csv(f'{folder}/orders_{year}_part_{idx}.csv', index=False)
-    print(f"💾 CSV salvato: {folder}/orders_{year}_part_{idx}.csv")
+    filename = f'orders_{year}_part_{part_id}.csv'
+    filepath = os.path.join(folder, filename)
+    # Usa Pandas per salvare, potrebbe essere più semplice per liste di dizionari
+    try:
+        pd.DataFrame(orders).to_csv(filepath, index=False)
+        print(f"💾 CSV parziale salvato: {filepath}")
+    except Exception as e:
+        print(f"Errore durante il salvataggio del file {filepath}: {e}")
+
+def merge_results(base_folder):
+    """Legge tutti i file CSV parziali, li unisce e salva il risultato finale."""
+    script_dir = os.path.dirname(__file__)
+    search_path = os.path.join(script_dir, base_folder, '**', 'orders_*_part_*.csv')
+    all_files = glob.glob(search_path, recursive=True) # Cerca ricorsivamente
+
+    if not all_files:
+        print("Nessun file parziale trovato da unire.")
+        return
+
+    print(f"Trovati {len(all_files)} file parziali da unire.")
+
+    # Usa Polars per efficienza se i file sono grandi
+    try:
+        # Leggi tutti i file CSV in un unico LazyFrame
+        lazy_dfs = [pl.scan_csv(f) for f in all_files]
+        # Concatena tutti i LazyFrame
+        merged_lf = pl.concat(lazy_dfs)
+        # Esegui il calcolo e ottieni il DataFrame finale
+        merged_df = merged_lf.collect()
+
+        # Salva il DataFrame unito
+        final_filename = os.path.join(script_dir, base_folder, 'merged_all_orders.csv')
+        merged_df.write_csv(final_filename)
+        print(f"✅ File CSV finali uniti e salvati in: {final_filename}")
+
+        # Opzionale: Rimuovere i file parziali dopo l'unione
+        # for f in all_files:
+        #     try:
+        #         os.remove(f)
+        #         print(f"🗑️ File parziale rimosso: {f}")
+        #     except OSError as e:
+        #         print(f"Errore nella rimozione del file {f}: {e}")
+
+    except Exception as e:
+        print(f"Errore durante l'unione dei file CSV con Polars: {e}")
+        print("Tentativo di fallback con Pandas...")
+        # Fallback con Pandas se Polars fallisce
+        try:
+            df_list = [pd.read_csv(f) for f in all_files]
+            if not df_list:
+                 print("Nessun DataFrame letto con Pandas.")
+                 return
+            merged_df_pd = pd.concat(df_list, ignore_index=True)
+            final_filename = os.path.join(script_dir, base_folder, 'merged_all_orders_pandas.csv')
+            merged_df_pd.to_csv(final_filename, index=False)
+            print(f"✅ File CSV finali uniti (con Pandas) e salvati in: {final_filename}")
+            # Opzionale: Rimuovere i file parziali qui se il merge con Pandas ha successo
+        except Exception as e_pd:
+            print(f"Errore anche durante l'unione con Pandas: {e_pd}")
+
+def get_last_processed_info(year, base_results_path):
+    """Trova l'ultimo part_id salvato per un dato anno."""
+    script_dir = os.path.dirname(__file__)
+    year_folder = os.path.join(script_dir, base_results_path, str(year))
+    last_part_id = 0
+    if os.path.exists(year_folder):
+        try:
+            # Cerca file nel formato orders_YYYY_part_N.csv
+            pattern = re.compile(rf'orders_{year}_part_(\d+)\.csv')
+            max_part = 0
+            for filename in os.listdir(year_folder):
+                match = pattern.match(filename)
+                if match:
+                    part_num = int(match.group(1))
+                    if part_num > max_part:
+                        max_part = part_num
+            last_part_id = max_part
+        except Exception as e:
+            print(f"Errore durante la scansione della cartella {year_folder} per i file parziali: {e}")
+    return last_part_id
 
 if __name__ == '__main__':
+    script_dir = os.path.dirname(__file__)
+    results_base_path = os.path.join(script_dir, RESULTS_FOLDER)
+    os.makedirs(results_base_path, exist_ok=True)
+
     combinations = generate_combinations(PARAM_GRID)
+    total_combinations = len(combinations)
+    print(f"Numero totale di combinazioni da testare: {total_combinations}")
 
     for year in YEARS_INPUT:
-        df = load_forex_data(year)
-        indicators = calculate_indicators(df)
-        all_orders = []
+        print(f"\n===== Inizio elaborazione anno: {year} =====")
+
+        # --- Inizio Modifica: Controllo Ripresa ---
+        last_part_id = get_last_processed_info(year, RESULTS_FOLDER)
+        combinations_to_skip = last_part_id * SAVE_EVERY
+        start_part_id = last_part_id + 1
+
+        if combinations_to_skip > 0:
+            if combinations_to_skip >= total_combinations:
+                print(f"✅ Anno {year} già completato (trovati {last_part_id} file parziali). Skipping.")
+                continue # Salta all'anno successivo
+            else:
+                print(f"▶️ Riprendendo l'anno {year} dalla combinazione {combinations_to_skip + 1} (trovati {last_part_id} file parziali).")
+        # --- Fine Modifica: Controllo Ripresa ---
+
+        try:
+            df = load_forex_data(year)
+            if df.height == 0:
+                print(f"Skipping anno {year} a causa di dati mancanti o errore nel caricamento.")
+                continue
+            indicators = calculate_indicators(df)
+        except Exception as e:
+            print(f"Errore durante preparazione dati per anno {year}: {e}")
+            print(f"Skipping anno {year}.")
+            continue
+
+        all_orders_batch = []
+        part_id = start_part_id # Inizia dal part_id corretto
 
         for idx, params in enumerate(combinations, 1):
-            print(f"🔄 Anno {year} | Combinazione {idx}/{len(combinations)}")
-            final_cash, orders = backtest(df, indicators, params, idx, year)
-            all_orders.extend(orders)
+            # --- Inizio Modifica: Salta Combinazioni ---
+            if idx <= combinations_to_skip:
+                continue # Salta questa combinazione perché già processata
+            # --- Fine Modifica: Salta Combinazioni ---
 
-            if idx % SAVE_EVERY == 0:
-                save_results(all_orders, year, idx)
-                all_orders = []
+            if idx % (SAVE_EVERY * 10) == 0 or idx == combinations_to_skip + 1 or idx == total_combinations:
+                 print(f"🔄 Anno {year} | Combinazione {idx}/{total_combinations}")
 
-        if all_orders:
-            save_results(all_orders, year, 'final')
+            try:
+                final_cash, orders = backtest(df, indicators, params, idx, year)
+                if orders:
+                    all_orders_batch.extend(orders)
+            except Exception as e:
+                print(f"Errore nel backtest per Anno {year}, Comb {idx}, Params {params}: {e}")
+                continue
+
+            # Salva batch parziali - La logica qui rimane simile ma usa il part_id aggiornato
+            # Controlla se il numero di combinazioni *processate in questa esecuzione* è un multiplo di SAVE_EVERY
+            # O più semplicemente, controlla l'indice globale `idx`
+            if idx % SAVE_EVERY == 0: # Controlla l'indice assoluto
+                save_results(all_orders_batch, year, part_id)
+                all_orders_batch = []
+                part_id += 1
+
+        # Salva eventuali ordini rimanenti alla fine del loop dell'anno
+        if all_orders_batch:
+            # L'ultimo part_id sarà quello calcolato nel ciclo o start_part_id se nessuna nuova parte è stata salvata
+            save_results(all_orders_batch, year, part_id)
+
+    print("\n===== Unione dei risultati finali =====")
+    merge_results(RESULTS_FOLDER) # La funzione merge non necessita modifiche
+
+    print("\n🏁 Elaborazione completata.")

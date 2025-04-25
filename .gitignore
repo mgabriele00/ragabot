@@ -6,3 +6,5 @@ orders/partial/
 
 # Ignora .DS_Store in qualsiasi sottocartella
 **/.DS_Store
+
+**/orders
