@@ -4,19 +4,20 @@ import numpy as np
 import pandas as pd
 import polars as pl
 import talib
+import matplotlib.pyplot as plt
 from typing import Any, Dict, List, Tuple
 
 # === PARAMETRI INIZIALI ===
 FOLDER = './dati_forex/EURUSD/'
-YEARS_INPUT = [2013]  # può essere [2013, 2024] oppure [2013, 2014, 2015]
+YEARS_INPUT = [2013]
 MERGE_YEARS = False
 PARAMS = {
-    "sl": 0.006,
-    "tp": 0.02,
     "rsi_entry": 35,
     "rsi_exit": 55,
     "bb_std": 1.75,
-    "exposure": 0.6
+    "exposure": 0.6,
+    "acr_window": 20,
+    "acr_factor": 1.5
 }
 INITIAL_CASH = 1000
 LEVERAGE = 100
@@ -72,12 +73,21 @@ def generate_signals(close: np.ndarray, rsi: np.ndarray, bullish: np.ndarray, be
     rsi_entry = params["rsi_entry"]
     rsi_exit = params["rsi_exit"]
     upper, middle, lower = talib.BBANDS(close, timeperiod=14, nbdevup=bb_std, nbdevdn=bb_std)
+
     entries = (rsi < rsi_entry) & (close < lower) & bullish
     exits = (rsi > rsi_exit) & (close > upper) & bearish
+
     return entries, exits
+
+def compute_acr(high: np.ndarray, low: np.ndarray, window: int) -> np.ndarray:
+    return pd.Series(high - low).rolling(window).mean().to_numpy()
 
 def backtest(df: pl.DataFrame, time: np.ndarray, rsi: np.ndarray, bullish: np.ndarray, bearish: np.ndarray, params: Dict[str, Any]) -> Tuple[float, List[Dict]]:
     close = df["Close"].to_numpy()
+    high = df["High"].to_numpy()
+    low = df["Low"].to_numpy()
+    acr = compute_acr(high, low, params["acr_window"])
+
     entries, exits = generate_signals(close, rsi, bullish, bearish, params)
     cash = INITIAL_CASH
     in_position = False
@@ -93,14 +103,19 @@ def backtest(df: pl.DataFrame, time: np.ndarray, rsi: np.ndarray, bullish: np.nd
             entry_price = price
             entry_time = timestamp
             entry_size = size
+            acr_val = acr[i] if not np.isnan(acr[i]) else 0
+            sl_val = acr_val * params["acr_factor"]
+            tp_val = acr_val * params["acr_factor"] * 2
+            sl_price = entry_price - sl_val
+            tp_price = entry_price + tp_val
             in_position = True
 
         elif in_position:
-            sl_trigger = price <= entry_price * (1 - params["sl"])
-            tp_trigger = price >= entry_price * (1 + params["tp"])
+            sl_trigger = price <= sl_price
+            tp_trigger = price >= tp_price
             exit_trigger = exits[i]
-            reason = None
 
+            reason = None
             if sl_trigger:
                 reason = "Stop Loss"
             elif tp_trigger:
@@ -163,76 +178,42 @@ if __name__ == "__main__":
     for y, count in order_counts.items():
         print(f"🗓️ {y}: {count} ordini")
 
+    # === GRAFICI ===
+    os.makedirs("features", exist_ok=True)
 
-import matplotlib.pyplot as plt
-import pandas as pd
+    for year in order_counts:
+        pkl_path = f"orders/final/orders_{year}_train.pkl"
+        if not os.path.exists(pkl_path):
+            continue
 
-# === Salva capitale finale per anno
-import matplotlib.pyplot as plt
-import pandas as pd
+        with open(pkl_path, "rb") as f:
+            orders = pickle.load(f)
 
-# === GRAFICO: Andamento Capitale nel Tempo ===
-os.makedirs("features", exist_ok=True)
+        if not orders:
+            continue
 
-for year in order_counts:
-    pkl_path = f"orders/final/orders_{year}_train.pkl"
-    if not os.path.exists(pkl_path):
-        continue
+        df = pd.DataFrame(orders)
+        df["Exit Time"] = pd.to_datetime(df["Exit Time"])
 
-    with open(pkl_path, "rb") as f:
-        orders = pickle.load(f)
+        plt.figure(figsize=(12, 5))
+        plt.plot(df["Exit Time"], df["Cash"], label=f"Capitale ({year})")
+        plt.title(f"📈 Andamento del Capitale - Anno {year}")
+        plt.xlabel("Data")
+        plt.ylabel("Capitale (€)")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(f"features/curva_capitale_{year}.png")
+        plt.show()
 
-    if not orders:
-        continue
-
-    df = pd.DataFrame(orders)
-    df["Exit Time"] = pd.to_datetime(df["Exit Time"])
-
-    plt.figure(figsize=(12, 5))
-    plt.plot(df["Exit Time"], df["Cash"], label=f"Capitale ({year})")
-    plt.title(f"📈 Andamento del Capitale - Anno {year}")
-    plt.xlabel("Data")
-    plt.ylabel("Capitale (€)")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.savefig(f"features/curva_capitale_{year}.png")
-    plt.show()  # Mostra il grafico interattivo
-
-import matplotlib.pyplot as plt
-
-# === GRAFICO ENTRY/EXIT con prezzi EUR/USD ===
-for year in order_counts:
-    pkl_path = f"orders/final/orders_{year}_train.pkl"
-    if not os.path.exists(pkl_path):
-        continue
-
-    print(f"\n📉 Generazione grafico prezzi + segnali per anno {year}...")
-    with open(pkl_path, "rb") as f:
-        orders = pickle.load(f)
-
-    if not orders:
-        continue
-
-    df_orders = pd.DataFrame(orders)
-    df_orders["Entry Time"] = pd.to_datetime(df_orders["Entry Time"])
-    df_orders["Exit Time"] = pd.to_datetime(df_orders["Exit Time"])
-
-    anno = int(str(year).split("_")[0])  # compatibile anche con '2013_2014'
-    df_price = load_forex_data(FOLDER, [anno]).to_pandas()
-
-    df_price["Datetime"] = pd.to_datetime(df_price["Datetime"])
-
-    plt.figure(figsize=(14, 6))
-    plt.plot(df_price["Datetime"], df_price["Close"], label="EUR/USD Close", color="gray", linewidth=1)
-
-    plt.scatter(df_orders["Entry Time"], df_orders["Entry Price"], color="green", marker="^", label="Entry", s=20)
-    plt.scatter(df_orders["Exit Time"], df_orders["Exit Price"], color="red", marker="v", label="Exit", s=20)
-
-    plt.title(f"📍 Entry & Exit su EUR/USD - Anno {year}")
-    plt.xlabel("Data")
-    plt.ylabel("Prezzo EUR/USD")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.savefig(f"features/entry_exit_aligned_{year}.png")
-    plt.show()
+        plt.figure(figsize=(14, 6))
+        df["Entry Time"] = pd.to_datetime(df["Entry Time"])
+        plt.plot(df["Entry Time"], df["Entry Price"], label="Entry", color="green", marker="^", linestyle="None")
+        plt.plot(df["Exit Time"], df["Exit Price"], label="Exit", color="red", marker="v", linestyle="None")
+        plt.title(f"📍 Entry & Exit - Anno {year}")
+        plt.xlabel("Data")
+        plt.ylabel("Prezzo EUR/USD")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(f"features/entry_exit_aligned_{year}.png")
+        plt.show()
