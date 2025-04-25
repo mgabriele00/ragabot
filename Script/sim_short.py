@@ -23,7 +23,7 @@ PARAM_GRID = {
     "atr_factor": [1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5]
 }
 
-YEARS_INPUT = [2013, 2014, 2015]
+YEARS_INPUT = [2013, 2014, 2015,2016,2017,2018,2019,2020,2021,2022,2023,2024]
 
 def load_forex_data(year):
     files = sorted([f for f in os.listdir(FOLDER) if f.endswith('.csv') and str(year) in f])
