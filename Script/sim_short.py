@@ -8,7 +8,7 @@ import glob # Importa il modulo glob
 import re # Importa il modulo re per le espressioni regolari
 
 INITIAL_CASH = 1000
-LEVERAGE = 100
+LEVERAGE = 30
 SAVE_EVERY = 100 # Modificato a 100
 FOLDER = '../dati_forex/EURUSD/'
 RESULTS_FOLDER = 'orders/sim_short' # Definisci la cartella dei risultati principali
