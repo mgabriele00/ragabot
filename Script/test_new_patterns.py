@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Tuple
 
 # === PARAMETRI INIZIALI ===
 FOLDER = './dati_forex/EURUSD/'
-YEARS_INPUT = [2022]
+YEARS_INPUT = [2024]
 MERGE_YEARS = False
 PARAMS = {
     "rsi_entry": 35,
@@ -72,15 +72,28 @@ def generate_signals(close: np.ndarray, rsi: np.ndarray, bullish: np.ndarray, be
     bb_std = params["bb_std"]
     rsi_entry = params["rsi_entry"]
     rsi_exit = params["rsi_exit"]
+
+    # Calcolo Bande di Bollinger
     upper, middle, lower = talib.BBANDS(close, timeperiod=14, nbdevup=bb_std, nbdevdn=bb_std)
 
-    entries_long = (rsi < rsi_entry) & (close < lower) & bullish
+    # Calcolo "larghezza" delle bande
+    bollinger_width = (upper - lower) / middle  # oppure /close se preferisci
+
+    # Definiamo una SOGLIA: entra solo se larghezza bande < soglia
+    width_threshold = 0.001  # 👈 1% di ampiezza (regolabile!)
+
+    # Condizione: bande strette
+    bands_are_narrow = bollinger_width < width_threshold
+
+    # Applica la condizione extra sulle entry
+    entries_long = (rsi < rsi_entry) & (close < lower) & bullish & bands_are_narrow
     exits_long = (rsi > rsi_exit) & (close > upper) & bearish
 
-    entries_short = (rsi > rsi_exit) & (close > upper) & bearish
+    entries_short = (rsi > rsi_exit) & (close > upper) & bearish & bands_are_narrow
     exits_short = (rsi < rsi_entry) & (close < lower) & bullish
 
     return entries_long, exits_long, entries_short, exits_short
+
 
 def compute_atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, window: int) -> np.ndarray:
     return talib.ATR(high, low, close, timeperiod=window)

@@ -1,0 +1,13 @@
+Script started on Fri Apr 25 22:50:47 2025
+ls Sc[1m[7m%[27m[1m[0m                                                                                ]7;file://MacBook-Air-di-Raffaele.local/Users/raffaele/documents/Github/ragabot[0m[27m[24m[J(base) raffaele@MacBook-Air-di-Raffaele ragabot % [K[?2004hlls Script[?2004l
+analisi_pattern.py	main_short.py		sim_short.py
+backtesting_xgboost.py	orders			test_new_patterns.py
+check.py		patternn_visual.py	to_parquet.py
+csv_tester.py		run_single_year.py	xgboost_model.py
+featurer.py		run_single_year_macd.py
+main.py			score_param.py
+[1m[7m%[27m[1m[0m                                                                                ]7;file://MacBook-Air-di-Raffaele.local/Users/raffaele/documents/Github/ragabot[0m[27m[24m[J(base) raffaele@MacBook-Air-di-Raffaele ragabot % [K[?2004hlls orders[?2004l
+partial		sim_short
+[1m[7m%[27m[1m[0m                                                                                ]7;file://MacBook-Air-di-Raffaele.local/Users/raffaele/documents/Github/ragabot[0m[27m[24m[J(base) raffaele@MacBook-Air-di-Raffaele ragabot % [K[?2004hlls sim_short[?2004l
+ls: sim_short: No such file or directory
+[1m[7m%[27m[1m[0m                                                                                ]7;file://MacBook-Air-di-Raffaele.local/Users/raffaele/documents/Github/ragabot[0m[27m[24m[J(base) raffaele@MacBook-Air-di-Raffaele ragabot % [K[?2004h
