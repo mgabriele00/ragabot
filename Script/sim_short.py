@@ -6,6 +6,8 @@ import itertools
 import pandas as pd
 import glob # Importa il modulo glob
 import re # Importa il modulo re per le espressioni regolari
+import numba as nb
+from numba import prange
 
 INITIAL_CASH = 1000
 LEVERAGE = 30
@@ -93,59 +95,141 @@ def generate_signals(close, rsi, bullish, bearish, params):
 
     return entries_long, exits_long, entries_short, exits_short
 
+@nb.njit(fastmath=True)
+def backtest_core_parallel(close, high, low, datetime_idx,
+                           rsi, bullish, bearish, atr,
+                           rsi_entry, rsi_exit, bb_std,
+                           exposure, atr_factor, leverage,
+                           initial_cash):
+    n = close.shape[0]
+    # prealloc BBANDS
+    sma = np.zeros(n, np.float64)
+    upper = np.zeros(n, np.float64)
+    lower = np.zeros(n, np.float64)
+    # Bollinger Bands
+    for i in prange(14, n):       # qui ok parallelizzato
+        # calcolo BB
+        s = 0.0
+        for j in range(i-14, i):
+            s += close[j]
+        m = s / 14.0
+        var = 0.0
+        for j in range(i-14, i):
+            d = close[j] - m
+            var += d*d
+        std = np.sqrt(var/14.0)
+        sma[i] = m
+        upper[i] = m + bb_std*std
+        lower[i] = m - bb_std*std
+
+    cash = initial_cash
+    has_pos = False
+    price0 = size = sl = tp = 0.0
+    time0 = 0
+    dir0 = 0  # 1=LONG,2=SHORT
+
+    # worst‑case orders
+    maxo = n
+    et = np.empty(maxo, np.int64)
+    xt = np.empty(maxo, np.int64)
+    ep = np.empty(maxo, np.float64)
+    xp = np.empty(maxo, np.float64)
+    sz = np.empty(maxo, np.float64)
+    pnl = np.empty(maxo, np.float64)
+    cash_a = np.empty(maxo, np.float64)
+    dr = np.empty(maxo, np.int64)
+    rr = np.empty(maxo, np.int64)
+    oc = 0
+
+    for i in range(n):            # SIMULAZIONE sequenziale!
+        price = close[i]
+        if not has_pos:
+            if (rsi[i] < rsi_entry) and (price < lower[i]) and bullish[i]:
+                dir0 = 1
+            elif (rsi[i] > rsi_exit) and (price > upper[i]) and bearish[i]:
+                dir0 = 2
+            else:
+                continue
+            # entry
+            has_pos = True
+            price0 = price
+            sl = price - (atr[i]*atr_factor if dir0==1 else -atr[i]*atr_factor)
+            tp = price + (atr[i]*atr_factor*2 if dir0==1 else -atr[i]*atr_factor*2)
+            size = (cash * exposure * leverage) / price
+            time0 = i
+
+        else:
+            exit_r = 0
+            if dir0 == 1:
+                if price <= sl:          exit_r = 1
+                elif price >= tp:        exit_r = 2
+                elif (rsi[i] > rsi_exit) and (price > upper[i]) and bearish[i]: exit_r = 3
+            else:
+                if price >= sl:          exit_r = 1
+                elif price <= tp:        exit_r = 2
+                elif (rsi[i] < rsi_entry) and (price < lower[i]) and bullish[i]: exit_r = 3
+
+            if exit_r>0:
+                # calc pnl
+                if dir0 == 1:
+                    x = (price - price0)*size
+                else:
+                    x = (price0 - price)*size
+                cash += x
+                # record
+                et[oc] = time0
+                xt[oc] = i
+                ep[oc] = price0
+                xp[oc] = price
+                sz[oc] = size
+                pnl[oc] = x
+                cash_a[oc] = cash
+                dr[oc] = dir0
+                rr[oc] = exit_r
+                oc += 1
+                has_pos = False
+
+    return cash, oc, et[:oc], xt[:oc], ep[:oc], xp[:oc], sz[:oc], pnl[:oc], cash_a[:oc], dr[:oc], rr[:oc]
+
+
 def backtest(df, indicators, params, sim_id, year):
     close = df["Close"].to_numpy()
     high = df["High"].to_numpy()
     low = df["Low"].to_numpy()
-    datetime = df["Datetime"].to_numpy()
-
+    dt = df["Datetime"].to_numpy()
     rsi, bullish, bearish = indicators
-    entries_long, exits_long, entries_short, exits_short = generate_signals(close, rsi, bullish, bearish, params)
-    atr = talib.ATR(high, low, close, params['atr_window'])
+    # seleziona ATR in base al parametro
+    atr = talib.ATR(high, low, close, params["atr_window"])
 
-    cash, position, orders = INITIAL_CASH, None, []
+    # esegue la simulazione per i parametri correnti
+    dt_idx = np.arange(len(close), dtype=np.int64)
+    cash_end, oc, et, xt, ep, xp, sz, pnl, cash_a, dr, rr = backtest_core_parallel(
+        close, high, low, dt_idx,
+        rsi, bullish, bearish, atr,
+        params["rsi_entry"], params["rsi_exit"], params["bb_std"],
+        params["exposure"], params["atr_factor"],
+        LEVERAGE, INITIAL_CASH
+    )
 
-    for i in range(len(close)):
-        price = close[i]
-
-        if not position:
-            if entries_long[i]:
-                direction = 'LONG'
-                sl = price - atr[i] * params['atr_factor']
-                tp = price + atr[i] * params['atr_factor'] * 2
-            elif entries_short[i]:
-                direction = 'SHORT'
-                sl = price + atr[i] * params['atr_factor']
-                tp = price - atr[i] * params['atr_factor'] * 2
-            else:
-                continue
-
-            size_eur = cash * params['exposure']
-            size = (size_eur * LEVERAGE) / price
-            position = {'price': price, 'size': size, 'sl': sl, 'tp': tp, 'time': datetime[i], 'direction': direction}
-
-        elif position:
-            exit_reason = None
-            if position['direction'] == 'LONG':
-                if price <= position['sl']: exit_reason = 'Stop Loss'
-                elif price >= position['tp']: exit_reason = 'Take Profit'
-                elif exits_long[i]: exit_reason = 'Signal Exit'
-            elif position['direction'] == 'SHORT':
-                if price >= position['sl']: exit_reason = 'Stop Loss'
-                elif price <= position['tp']: exit_reason = 'Take Profit'
-                elif exits_short[i]: exit_reason = 'Signal Exit'
-
-            if exit_reason:
-                pnl = (price - position['price']) * position['size'] if position['direction'] == 'LONG' else (position['price'] - price) * position['size']
-                cash += pnl
-                orders.append({
-                    "Simulation": sim_id, "Entry Time": position['time'], "Exit Time": datetime[i],
-                    "Entry Price": position['price'], "Exit Price": price, "Size": position['size'],
-                    "PnL": pnl, "Cash": cash, "Year": year, "Reason": exit_reason, **params, "Direction": position['direction']
-                })
-                position = None
-
-    return cash, orders
+    # costruisce lista di ordini
+    orders = []
+    reason_map = {1: "Stop Loss", 2: "Take Profit", 3: "Signal Exit"}
+    for i in range(oc):
+        orders.append({
+            "Simulation": sim_id,
+            "Entry Time": dt[et[i]],
+            "Exit Time": dt[xt[i]],
+            "Entry Price": ep[i],
+            "Exit Price": xp[i],
+            "Size": sz[i],
+            "PnL": pnl[i],
+            "Cash": cash_a[i],
+            "Year": year,
+            "Reason": reason_map[int(rr[i])],
+            "Direction": "LONG" if dr[i] == 1 else "SHORT",
+            **params
+        })
+    return cash_end, orders
 
 def save_results(orders, year, part_id):
     """Salva un batch di ordini in formato Pickle parziale."""
