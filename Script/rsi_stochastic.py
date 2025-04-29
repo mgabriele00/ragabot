@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Tuple
 
 # === PARAMETRI INIZIALI ===
 FOLDER = './dati_forex/EURUSD/'
-YEARS_INPUT = [2013]
+YEARS_INPUT = [2024]
 MERGE_YEARS = False
 USE_STOCHASTIC_RSI = False  # 👈 Scegli qui: False = RSI normale, True = Stochastic RSI
 PARAMS = {
@@ -86,11 +86,11 @@ def generate_signals(close: np.ndarray, rsi: np.ndarray, bullish: np.ndarray, be
 
     bands_are_narrow = bollinger_width < width_threshold
 
-    entries_long = (rsi < rsi_entry) & (close < lower) & bullish & bands_are_narrow
-    exits_long = (rsi > rsi_exit) & (close > upper) & bearish
+    entries_long = (rsi < rsi_entry) & bullish & bands_are_narrow
+    exits_long = (rsi > rsi_exit) & (close > upper) & bearish & bands_are_narrow
 
     entries_short = (rsi > rsi_exit) & (close > upper) & bearish & bands_are_narrow
-    exits_short = (rsi < rsi_entry) & (close < lower) & bullish
+    exits_short = (rsi < rsi_entry) & (close < lower) & bullish & bands_are_narrow
 
     return entries_long, exits_long, entries_short, exits_short
 
