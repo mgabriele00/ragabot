@@ -1,7 +1,10 @@
 import numpy as np
+import talib # Assicurati che talib sia importato
 from numba import float32, int32, boolean, types
 from numba.typed import List
 from numba.experimental import jitclass
+# Importa la funzione get_pattern dal modulo corretto
+from utils.pattern_utils import get_pattern # Assicurati che il percorso sia corretto
 
 # 1) BollingerBand
 boll_spec = [
@@ -33,7 +36,7 @@ class ATRParams:
 BB_T = BollingerBand.class_type.instance_type
 ATR_T = ATRParams.class_type.instance_type
 
-# 3) StrategyParams
+# 3) StrategyIndicators
 strat_spec = [
     ('rsi',       float32[:]),
     ('bollinger', types.ListType(BB_T)),
@@ -77,3 +80,54 @@ class StrategyIndicators:
         # Boolean arrays
         self.bullish = bullish.astype(np.bool_)
         self.bearish = bearish.astype(np.bool_)
+
+# --- Funzione definita FUORI dalla classe ---
+
+def generate_indicators_to_test(close: np.ndarray, high: np.ndarray, low: np.ndarray, open_: np.ndarray) -> StrategyIndicators:
+    """
+    Calcola gli indicatori tecnici necessari e crea un'istanza di StrategyIndicators.
+
+    Args:
+        close (np.ndarray): Array dei prezzi di chiusura.
+        high (np.ndarray): Array dei prezzi massimi.
+        low (np.ndarray): Array dei prezzi minimi.
+        open_ (np.ndarray): Array dei prezzi di apertura.
+
+    Returns:
+        StrategyIndicators: Un'istanza contenente tutti gli indicatori calcolati.
+    """
+    # Calcola RSI
+    rsi = talib.RSI(close, timeperiod=14)
+
+    # Calcola Pattern Bullish/Bearish
+    bullish, bearish = get_pattern(close, open_, high, low)
+
+    # Definisci i parametri da testare per BB e ATR
+    bb_std_values = [1.5, 1.75, 2.0]
+    atr_window_values = [14, 20]
+
+    # Calcola Bollinger Bands per ogni deviazione standard
+    bollinger_bands_data = []
+    for std in bb_std_values:
+        # Assicurati che timeperiod sia abbastanza piccolo rispetto alla lunghezza di 'close'
+        # e che 'close' non contenga troppi NaN all'inizio.
+        try:
+            upper, middle, lower = talib.BBANDS(close, timeperiod=14, nbdevup=std, nbdevdn=std)
+            # Aggiungi la tupla (std, lower, middle, upper)
+            bollinger_bands_data.append((std, lower, middle, upper))
+        except Exception as e:
+            print(f"Errore nel calcolo di BBANDS con std={std}: {e}")
+            # Potresti voler gestire l'errore in modo diverso, es. saltando questo std
+            # o restituendo un valore di errore/None
+
+    # Calcola ATR per ogni finestra
+    atr_data_list = []
+    for window in atr_window_values:
+        # Assicurati che high, low, close non contengano troppi NaN all'inizio
+        try:
+            atr = talib.ATR(high, low, close, timeperiod=window)
+            # Aggiungi la tupla (window, atr_values)
+            atr_data_list.append((window, atr))
+        except Exception as e:
+            print(f"Errore nel calcolo di ATR con window={window}: {e}")
+    return StrategyIndicators(rsi, bollinger_bands_data, atr_data_list, bullish, bearish)

@@ -16,15 +16,15 @@ FOLDER = '../dati_forex/EURUSD/'
 RESULTS_FOLDER = 'orders/sim_short' # Definisci la cartella dei risultati principali
 
 PARAM_GRID = {
-    "rsi_entry": list(range(30, 46)),
-    "rsi_exit": list(range(55, 71)),
-    "bb_std": [1.5, 1.75, 2.0],
-    "exposure": [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
-    "atr_window": [14, 20],
-    "atr_factor": [1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5]
+    "rsi_entry": [30],
+    "rsi_exit": [55],
+    "bb_std": [1.5, ],
+    "exposure": [0.3 ],
+    "atr_window": [14 ],
+    "atr_factor": [1.0 ]
 }
 
-YEARS_INPUT = [2015]
+YEARS_INPUT = [2024]
 
 def load_forex_data(year):
     script_dir = os.path.dirname(__file__)
@@ -232,7 +232,7 @@ def backtest(df, indicators, params, sim_id, year):
     return cash_end, orders
 
 def save_results(orders, year, part_id):
-    """Salva un batch di ordini in formato Pickle parziale."""
+    """Salva un batch di ordini in formato CSV parziale."""
     if not orders:
         return  # Non salvare file vuoti
 
@@ -240,13 +240,13 @@ def save_results(orders, year, part_id):
     folder = os.path.join(script_dir, RESULTS_FOLDER, str(year))
     os.makedirs(folder, exist_ok=True)
 
-    filename = f'orders_{year}_part_{part_id}.pkl'
+    filename = f'orders_{year}_part_{part_id}.csv' # Modifica estensione
     filepath = os.path.join(folder, filename)
 
     try:
         df = pd.DataFrame(orders)
-        df.to_pickle(filepath)
-        print(f"💾 Pickle parziale salvato: {filepath}")
+        df.to_csv(filepath, index=False) # Modifica: salva in CSV
+        print(f"💾 CSV parziale salvato: {filepath}")
 
     except Exception as e:
         print(f"Errore durante il salvataggio del file {filepath}: {e}")
@@ -255,39 +255,39 @@ def save_results(orders, year, part_id):
 
 
 def merge_results(base_folder):
-    """Legge tutti i file Pickle parziali, li unisce e salva il risultato finale."""
+    """Legge tutti i file CSV parziali, li unisce e salva il risultato finale."""
     script_dir = os.path.dirname(__file__)
-    search_path = os.path.join(script_dir, base_folder, '**', 'orders_*_part_*.pkl')
+    search_path = os.path.join(script_dir, base_folder, '**', 'orders_*_part_*.csv') # Modifica estensione
     all_files = glob.glob(search_path, recursive=True)
 
     if not all_files:
-        print("Nessun file Pickle parziale trovato da unire.")
+        print("Nessun file CSV parziale trovato da unire.")
         return
 
-    print(f"Trovati {len(all_files)} file Pickle parziali da unire.")
+    print(f"Trovati {len(all_files)} file CSV parziali da unire.")
 
     try:
-        dfs = [pd.read_pickle(f) for f in all_files]
+        dfs = [pd.read_csv(f) for f in all_files] # Modifica: leggi CSV
         merged_df = pd.concat(dfs, ignore_index=True)
 
-        final_filename = os.path.join(script_dir, base_folder, 'merged_all_orders.pkl')
-        merged_df.to_pickle(final_filename)
-        print(f"✅ File Pickle finale salvato in: {final_filename}")
+        final_filename = os.path.join(script_dir, base_folder, 'merged_all_orders.csv') # Modifica estensione
+        merged_df.to_csv(final_filename, index=False) # Modifica: salva in CSV
+        print(f"✅ File CSV finale salvato in: {final_filename}")
 
     except Exception as e:
-        print(f"Errore durante l'unione dei file Pickle: {e}")
+        print(f"Errore durante l'unione dei file CSV: {e}")
 
 
 
 def get_last_processed_info(year, base_results_path):
-    """Trova l'ultimo part_id salvato per un dato anno (Pickle)."""
+    """Trova l'ultimo part_id salvato per un dato anno (CSV)."""
     script_dir = os.path.dirname(__file__)
     year_folder = os.path.join(script_dir, base_results_path, str(year))
     last_part_id = 0
 
     if os.path.exists(year_folder):
         try:
-            pattern = re.compile(rf'orders_{year}_part_(\d+)\.pkl')
+            pattern = re.compile(rf'orders_{year}_part_(\d+)\.csv') # Modifica estensione
             max_part = 0
             for filename in os.listdir(year_folder):
                 match = pattern.match(filename)
@@ -353,6 +353,7 @@ if __name__ == '__main__':
 
             try:
                 final_cash, orders = backtest(df, indicators, params, idx, year)
+                print(f"  -> Anno {year} | Comb {idx} | Params: {params} | Final Cash: {final_cash:.2f}") # <-- Aggiungi questa riga
                 if orders:
                     all_orders_batch.extend(orders)
             except Exception as e:

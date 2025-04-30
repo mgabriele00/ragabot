@@ -8,19 +8,19 @@ import matplotlib.pyplot as plt
 from typing import Any, Dict, List, Tuple
 
 # === PARAMETRI INIZIALI ===
-FOLDER = './dati_forex/EURUSD/'
+FOLDER = '../dati_forex/EURUSD/'
 YEARS_INPUT = [2013]
 MERGE_YEARS = False
 PARAMS = {
-    "rsi_entry": 35,
+    "rsi_entry": 30,
     "rsi_exit": 55,
-    "bb_std": 1.75,
-    "exposure": 0.6,
-    "acr_window": 20,
-    "acr_factor": 1.5
+    "bb_std": 1.5,
+    "exposure": 0.3,
+    "acr_window": 14,
+    "acr_factor": 1
 }
 INITIAL_CASH = 1000
-LEVERAGE = 100
+LEVERAGE = 30
 
 # === FUNZIONI DI UTILITÀ ===
 def resolve_years(input: Any) -> List[int]:
