@@ -1,6 +1,7 @@
 import numpy as np
 from numba import njit
 import math
+from service.analysis_service import calculate_max_drawdown_from_initial
 
 @njit(fastmath=False)
 def backtest(close, atr, signals, initial_equity, sl_mult, tp_mult, exposure, leverage) -> np.ndarray:
@@ -84,4 +85,6 @@ def backtest(close, atr, signals, initial_equity, sl_mult, tp_mult, exposure, le
 
         # 2.6 Registra equity di fine barra
         equity_curve[i] = current_equity
-    return equity_curve[-1]#equity_curve.astype(np.float32)
+    max_dd = calculate_max_drawdown_from_initial(equity_curve, initial_equity)
+    
+    return equity_curve[-1], max_dd

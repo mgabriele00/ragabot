@@ -2,12 +2,13 @@ import csv
 import numpy as np
 import polars as pl
 import os
+from typing import List
 # Importa StrategyCondition per il type hinting (se non già fatto)
 # Potrebbe essere necessario aggiustare il percorso relativo o assoluto
 # a seconda della struttura del tuo progetto
 from models.strategy_condition import StrategyCondition # Assicurati che questo import funzioni
 
-FOLDER = "./../../dati_forex/EURUSD"  # Nome della cartella contenente i file CSV
+FOLDER = "dati_forex/EURUSD"  # Nome della cartella contenente i file CSV
 
 def load_forex_data_dohlc(year) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     script_dir = os.path.dirname(__file__)
@@ -114,3 +115,56 @@ def save_results_to_csv(results: np.ndarray, strategy_conditions: list[StrategyC
             ]
             writer.writerow(row_data)
     print("Results saved.")
+    
+    
+    
+
+
+
+def build_polars_table_for_year(
+    strategy_conditions: List[StrategyCondition],
+    final_equities,
+    drawdowns,
+    year: int
+) -> pl.DataFrame:
+    return pl.DataFrame({
+        "rsi_entry": [float(c.rsi_entry) for c in strategy_conditions],
+        "rsi_exit": [float(c.rsi_exit) for c in strategy_conditions],
+        "exposure": [float(c.exposure) for c in strategy_conditions],
+        "atr_factor": [float(c.atr_factor) for c in strategy_conditions],
+        "bb_std": [float(c.bb_std) for c in strategy_conditions],
+        "atr_window": [int(c.atr_window) for c in strategy_conditions],
+        "bb_width_threshold": [float(c.bb_width_threshold) for c in strategy_conditions],
+        f"equity_{year}": final_equities,
+        f"drawdown_{year}": drawdowns
+    })
+
+def combine_all_years_by_parameters(
+    years: List[int],
+    main_fn
+) -> pl.DataFrame:
+    """
+    Esegue il main per ogni anno e unisce i risultati su riga in base alla combinazione di parametri.
+    :param years: lista di anni (es. [2013, 2014])
+    :param main_fn: funzione main(year) → (final_equities, _, drawdowns)
+    :return: DataFrame Polars unificato
+    """
+    df_merged = None
+    strategy_conditions = None
+
+    for year in years:
+        final_equities, _, drawdowns = main_fn(year)
+        if strategy_conditions is None:
+            from models.strategy_condition import generate_conditions_to_test
+            strategy_conditions = generate_conditions_to_test()
+
+        df_year = build_polars_table_for_year(strategy_conditions, final_equities, drawdowns, year)
+
+        if df_merged is None:
+            df_merged = df_year
+        else:
+            df_merged = df_merged.join(df_year, on=[
+                "rsi_entry", "rsi_exit", "exposure",
+                "atr_factor", "bb_std", "atr_window", "bb_width_threshold"
+            ])
+    return df_merged

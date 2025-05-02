@@ -1,8 +1,8 @@
 import numpy as np
 from numba import njit
 
-from Script.ragasim.src.models.strategy_condition import StrategyCondition
-from Script.ragasim.src.models.strategy_indicators import StrategyIndicators
+from models.strategy_condition import StrategyCondition
+from models.strategy_indicators import StrategyIndicators
 
 @njit(fastmath=True, parallel=False)
 def get_signal(strategy_indicators: StrategyIndicators, strategy_condition: StrategyCondition, close: np.ndarray) -> np.ndarray:

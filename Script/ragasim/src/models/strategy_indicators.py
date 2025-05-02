@@ -4,7 +4,7 @@ from numba import float32, int32, boolean, types
 from numba.typed import List
 from numba.experimental import jitclass
 
-from Script.ragasim.src.utils.pattern_utils import get_pattern
+from utils.pattern_utils import get_pattern
 
 # 1) BollingerBand
 boll_spec = [
