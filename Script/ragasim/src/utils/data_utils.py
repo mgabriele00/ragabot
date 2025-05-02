@@ -7,7 +7,7 @@ import os
 # a seconda della struttura del tuo progetto
 from models.strategy_condition import StrategyCondition # Assicurati che questo import funzioni
 
-FOLDER = "./../../../dati_forex/EURUSD"  # Nome della cartella contenente i file CSV
+FOLDER = "./../../dati_forex/EURUSD"  # Nome della cartella contenente i file CSV
 
 def load_forex_data_dohlc(year) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     script_dir = os.path.dirname(__file__)

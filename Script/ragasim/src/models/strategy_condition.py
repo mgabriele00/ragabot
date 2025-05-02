@@ -50,7 +50,7 @@ def generate_conditions_to_test() -> List[StrategyCondition]:
         "exposure": [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
         "atr_window": [14, 20],
         "atr_factor": [1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5],
-        "bb_width_threshold": [1, 1.5, 2, 3] # Aggiunto nuovo parametro
+        "bb_width_threshold": [1, 1.5, 2, 3]
     }
 
     param_values_ordered = [
@@ -60,7 +60,7 @@ def generate_conditions_to_test() -> List[StrategyCondition]:
         params["atr_factor"],
         params["bb_std"],
         params["atr_window"],
-        params["bb_width_threshold"] # Aggiunto nuovo parametro
+        params["bb_width_threshold"] 
     ]
     param_combinations = list(itertools.product(*param_values_ordered))
     conditions = [StrategyCondition(*combo) for combo in param_combinations]

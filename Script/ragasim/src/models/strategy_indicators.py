@@ -1,14 +1,14 @@
 import numpy as np
-import talib # Assicurati che talib sia importato
+import talib
 from numba import float32, int32, boolean, types
 from numba.typed import List
 from numba.experimental import jitclass
-# Importa la funzione get_pattern dal modulo corretto
-from utils.pattern_utils import get_pattern # Assicurati che il percorso sia corretto
+
+from Script.ragasim.src.utils.pattern_utils import get_pattern
 
 # 1) BollingerBand
 boll_spec = [
-    ('bb_std',  float32[:]),
+    ('bb_std',  float32),
     ('lower',   float32[:]),
     ('medium',  float32[:]),
     ('upper',   float32[:]),
@@ -54,7 +54,7 @@ class StrategyIndicators:
         # Bollinger
         bb_list = List.empty_list(BB_T)
         for bb_std, lower, medium, upper in boll_data:
-            # bb_std può essere uno scalar float64: creiamo un array float32
+            # bb_std può essere uno scalar float32: creiamo un array float32
             bb_arr = np.full(lower.shape, np.float32(bb_std))
             bb_list.append(
                 BollingerBand(
