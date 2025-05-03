@@ -9,19 +9,19 @@ from typing import Any, Dict, List, Tuple
 
 # === PARAMETRI INIZIALI ===
 FOLDER = './dati_forex/EURUSD/'
-YEARS_INPUT = [2024]
+YEARS_INPUT = [2014]
 MERGE_YEARS = False
 PARAMS = {
-    "rsi_entry": 35,
+    "rsi_entry": 44,
     "rsi_exit": 55,
-    "bb_std": 1.75,
-    "exposure": 0.6,
-    "atr_window": 20,
+    "bb_std": 2.25,
+    "exposure": 0.9,
+    "atr_window": 14,
     "atr_factor": 1.5
 }
 INITIAL_CASH = 1000
 LEVERAGE = 100
-
+FIXED_FEE = 2.5
 # === FUNZIONI DI UTILITÀ ===
 def resolve_years(input: Any) -> List[int]:
     if isinstance(input, int):
@@ -80,7 +80,7 @@ def generate_signals(close: np.ndarray, rsi: np.ndarray, bullish: np.ndarray, be
     bollinger_width = (upper - lower) / middle  # oppure /close se preferisci
 
     # Definiamo una SOGLIA: entra solo se larghezza bande < soglia
-    width_threshold = 0.001  # 👈 1% di ampiezza (regolabile!)
+    width_threshold = 0.008  # 👈 1% di ampiezza (regolabile!)
 
     # Condizione: bande strette
     bands_are_narrow = bollinger_width < width_threshold
@@ -98,54 +98,67 @@ def generate_signals(close: np.ndarray, rsi: np.ndarray, bullish: np.ndarray, be
 def compute_atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, window: int) -> np.ndarray:
     return talib.ATR(high, low, close, timeperiod=window)
 
-def backtest(df: pl.DataFrame, time: np.ndarray, rsi: np.ndarray, bullish: np.ndarray, bearish: np.ndarray, params: Dict[str, Any]) -> Tuple[float, List[Dict]]:
+def backtest(df: pl.DataFrame,
+             time: np.ndarray,
+             rsi: np.ndarray,
+             bullish: np.ndarray,
+             bearish: np.ndarray,
+             params: Dict[str, Any]) -> Tuple[float, List[Dict]]:
     close = df["Close"].to_numpy()
-    high = df["High"].to_numpy()
-    low = df["Low"].to_numpy()
-    atr = compute_atr(high, low, close, params["atr_window"])
+    high  = df["High"].to_numpy()
+    low   = df["Low"].to_numpy()
+    atr   = compute_atr(high, low, close, params["atr_window"])
 
-    entries_long, exits_long, entries_short, exits_short = generate_signals(close, rsi, bullish, bearish, params)
+    entries_long, exits_long, entries_short, exits_short = generate_signals(
+        close, rsi, bullish, bearish, params
+    )
+
     cash = INITIAL_CASH
     in_position = False
     is_short = False
     orders = []
 
     for i in range(len(close)):
-        price = close[i]
+        price     = close[i]
         timestamp = time[i]
 
         if not in_position:
-            if entries_long[i]:
-                direction = "LONG"
-                entry_price = price
-                entry_time = timestamp
-                is_short = False
-            elif entries_short[i]:
-                direction = "SHORT"
-                entry_price = price
-                entry_time = timestamp
-                is_short = True
-            else:
-                continue
+            # apertura posizione LONG
+            if entries_long[i] or entries_short[i]:
+                in_position = True
+                is_short    = entries_short[i]
 
-            size_eur = cash * params["exposure"]
-            size = (size_eur * LEVERAGE) / price
-            entry_size = size
-            atr_val = atr[i] if not np.isnan(atr[i]) else 0
-            sl_val = atr_val * params["atr_factor"]
-            tp_val = atr_val * params["atr_factor"] * 2
-            sl_price = entry_price - sl_val if not is_short else entry_price + sl_val
-            tp_price = entry_price + tp_val if not is_short else entry_price - tp_val
-            in_position = True
+                entry_price = price
+                entry_time  = timestamp
 
-        elif in_position:
+                # applica la commissione di apertura
+                cash -= FIXED_FEE
+
+                size_eur = cash * params["exposure"]
+                size     = (size_eur * LEVERAGE) / price
+                entry_size = size
+
+                # stop loss / take profit
+                atr_val = 0.0 if np.isnan(atr[i]) else atr[i]
+                sl_val  = atr_val * params["atr_factor"]
+                tp_val  = atr_val * params["atr_factor"] * 2
+
+                if is_short:
+                    sl_price = entry_price + sl_val
+                    tp_price = entry_price - tp_val
+                else:
+                    sl_price = entry_price - sl_val
+                    tp_price = entry_price + tp_val
+
+        else:
+            # controlli per chiusura
             if is_short:
-                sl_trigger = price >= sl_price
-                tp_trigger = price <= tp_price
+                sl_trigger   = price >= sl_price
+                tp_trigger   = price <= tp_price
                 exit_trigger = exits_short[i]
             else:
-                sl_trigger = price <= sl_price
-                tp_trigger = price >= tp_price
+                sl_trigger   = price <= sl_price
+                tp_trigger   = price >= tp_price
                 exit_trigger = exits_long[i]
 
             reason = None
@@ -157,21 +170,29 @@ def backtest(df: pl.DataFrame, time: np.ndarray, rsi: np.ndarray, bullish: np.nd
                 reason = "Signal Exit"
 
             if reason:
-                exit_price = price
-                pnl = (entry_price - exit_price) * entry_size if is_short else (exit_price - entry_price) * entry_size
+                # calcola PnL
+                if is_short:
+                    pnl = (entry_price - price) * entry_size
+                else:
+                    pnl = (price - entry_price) * entry_size
+
+                # incassa pnl, poi rimuovi commissione di chiusura
                 cash += pnl
+                cash -= FIXED_FEE
+
                 orders.append({
-                    "Entry Time": entry_time,
-                    "Exit Time": timestamp,
+                    "Entry Time":  entry_time,
+                    "Exit Time":   timestamp,
                     "Entry Price": entry_price,
-                    "Exit Price": exit_price,
-                    "Size": entry_size,
-                    "PnL": pnl,
-                    "Cash": cash,
-                    "Reason": reason,
-                    "Type": "SHORT" if is_short else "LONG",
+                    "Exit Price":  price,
+                    "Size":        entry_size,
+                    "PnL":         pnl,
+                    "Cash":        cash,
+                    "Reason":      reason,
+                    "Type":        "SHORT" if is_short else "LONG",
                     **params
                 })
+
                 in_position = False
 
     return cash, orders
