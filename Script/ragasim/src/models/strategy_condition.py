@@ -44,13 +44,13 @@ def generate_conditions_to_test() -> List[StrategyCondition]:
         List[StrategyCondition]: Una lista di oggetti StrategyCondition.
     """
     params = {
-        "rsi_entry": list(range(30, 46)),
-        "rsi_exit": list(range(55, 71)),
-        "bb_std": [1.5, 1.75, 2.0],
-        "exposure": [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
-        "atr_window": [14, 20],
+        "rsi_entry": list(range(20, 45)),
+        "rsi_exit": list(range(55, 80)),
+        "bb_std": [1.75, 2, 2.25],
+        "exposure": [0.1,0.2,0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+        "atr_window": [14, 20,9,27],
         "atr_factor": [1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5],
-        "bb_width_threshold": [1, 1.5, 2, 3]
+        "bb_width_threshold": [0.001, 0.008, 0.0015, 0.002]
     }
 
     param_values_ordered = [
@@ -65,3 +65,5 @@ def generate_conditions_to_test() -> List[StrategyCondition]:
     param_combinations = list(itertools.product(*param_values_ordered))
     conditions = [StrategyCondition(*combo) for combo in param_combinations]
     return conditions
+
+

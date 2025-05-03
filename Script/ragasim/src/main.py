@@ -1,12 +1,16 @@
 #main
 from typing import List
 import numpy as np
+import os
 from models.strategy_indicators import StrategyIndicators, generate_indicators_to_test
 from service.signal_service import get_signal
 from utils.data_utils import load_forex_data_dohlc, save_results_to_csv, combine_all_years_by_parameters, build_polars_table_for_year # Rimuovi save_results_to_csv da qui se definita sotto
 from service.backtesting_service import backtest
 from numba import njit, prange
 from models.strategy_condition import StrategyCondition, generate_conditions_to_test
+from service.analysis_service import compute_strategy_score
+
+
 
 @njit(parallel=True, fastmath=False)
 def simulate(close:np.ndarray, strategy_indicators:StrategyIndicators, strategy_condition: List[StrategyCondition]):
@@ -57,7 +61,6 @@ def main(year: int):
     final_equities, condition_indices, max_drawdowns = simulate(close, strategy_indicators, strategy_conditions_list)
     print("Simulation finished.")
     print("Max equity:", np.max(final_equities))
-    print("Max dd:", np.max(max_drawdowns))
     best_idx = np.argmax(final_equities)
     print("Drawdown della strategia migliore:", max_drawdowns[best_idx])
     condition_index = condition_indices[np.argmax(final_equities)]
@@ -70,6 +73,7 @@ def main(year: int):
     print("Exposure: ", condition.exposure)
     print("ATR Factor: ", condition.atr_factor)
     print("Atr Window: ", condition.atr_window)
+    print("Max dd:", np.max(max_drawdowns))
     return final_equities, condition_indices, max_drawdowns
 
 #if __name__ == '__main__':
@@ -79,11 +83,13 @@ def main(year: int):
 #        main(year)
 
 if __name__ == '__main__':
-    years = [2013, 2014]
+    years = [2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
+
+    os.makedirs("results", exist_ok=True)
 
     # Combina tutto usando la funzione esterna
     df_all = combine_all_years_by_parameters(years, main)
-
-    # Salva su file
-    df_all.write_csv("results/strategies_by_params_all_years.csv")
+    df_scored = compute_strategy_score(df_all, years, alpha=0.5, beta=0.3, gamma=0.2)
+    df_scored = df_scored.sort("score", descending=True)
+    df_scored.write_csv("results/scored_strategies_by_params.csv")
     print("✅ File salvato in results/strategies_by_params_all_years.csv")
