@@ -42,8 +42,10 @@ def compute_strategy_score(
     df = df.with_columns([
         # varianza = E[X^2] - (E[X])^2
         (pl.col("mean_squared_equity") - pl.col("mean_equity")**2).alias("var_equity"),
-        # deviazione standard
-        pl.sqrt(pl.col("mean_squared_equity") - pl.col("mean_equity")**2).alias("std_equity"),
+        # deviazione standard usando il metodo .sqrt()
+        (pl.col("mean_squared_equity") - pl.col("mean_equity")**2)
+          .sqrt()
+          .alias("std_equity"),
     ])
 
     # 3) volatilità relativa = std_equity / mean_equity

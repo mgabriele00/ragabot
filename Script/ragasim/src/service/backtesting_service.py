@@ -4,7 +4,7 @@ import math
 from service.analysis_service import calculate_max_drawdown_from_initial
 
 @njit(fastmath=False)
-def backtest(close, atr, signals, initial_equity, sl_mult, tp_mult, exposure, leverage) -> np.ndarray:
+def backtest(close, atr, signals, initial_equity, sl_mult, tp_mult, exposure, leverage, fixed_fee=np.float32(2.5)) -> np.ndarray:
     # Preallochiamo un array NumPy della dimensione corretta
     equity_curve = np.full(len(close), np.float32(0.0))
     
@@ -34,8 +34,9 @@ def backtest(close, atr, signals, initial_equity, sl_mult, tp_mult, exposure, le
             position_side = signal
             entry_price = price
             position_size = (exposure * realized_equity * leverage) / entry_price
+            realized_equity -= np.float32(fixed_fee)
             stop_loss = price - signal * sl_mult * atr_i
-            take_profit = price + signal * tp_mult * atr_i * 2 #TODO: eliminare 2
+            take_profit = price + signal * tp_mult * atr_i * 4 #TODO: eliminare 2
 
         # 2.2 Controllo uscita
         exit_price = None
@@ -62,6 +63,7 @@ def backtest(close, atr, signals, initial_equity, sl_mult, tp_mult, exposure, le
         if exit_price is not None:
             pnl = position_size * (exit_price - entry_price) * position_side
             realized_equity += pnl
+            realized_equity -= np.float32(fixed_fee)
             position_open = False
             position_side = 0
             entry_price = np.float32(0.0)

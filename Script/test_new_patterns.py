@@ -9,18 +9,18 @@ from typing import Any, Dict, List, Tuple
 
 # === PARAMETRI INIZIALI ===
 FOLDER = './dati_forex/EURUSD/'
-YEARS_INPUT = [2014]
+YEARS_INPUT = [2013]
 MERGE_YEARS = False
 PARAMS = {
-    "rsi_entry": 44,
+    "rsi_entry": 35,
     "rsi_exit": 55,
-    "bb_std": 2.25,
-    "exposure": 0.9,
+    "bb_std": 1.75,
+    "exposure": 0.6,
     "atr_window": 14,
-    "atr_factor": 1.5
+    "atr_factor": 10
 }
 INITIAL_CASH = 1000
-LEVERAGE = 100
+LEVERAGE = 30
 FIXED_FEE = 2.5
 # === FUNZIONI DI UTILITÀ ===
 def resolve_years(input: Any) -> List[int]:
@@ -98,12 +98,18 @@ def generate_signals(close: np.ndarray, rsi: np.ndarray, bullish: np.ndarray, be
 def compute_atr(high: np.ndarray, low: np.ndarray, close: np.ndarray, window: int) -> np.ndarray:
     return talib.ATR(high, low, close, timeperiod=window)
 
-def backtest(df: pl.DataFrame,
-             time: np.ndarray,
-             rsi: np.ndarray,
-             bullish: np.ndarray,
-             bearish: np.ndarray,
-             params: Dict[str, Any]) -> Tuple[float, List[Dict]]:
+def backtest(
+    df: pl.DataFrame,
+    time: np.ndarray,
+    rsi: np.ndarray,
+    bullish: np.ndarray,
+    bearish: np.ndarray,
+    params: Dict[str, Any]
+) -> Tuple[float, List[Dict]]:
+    """
+    Ogni TP viene rialzato se necessario in modo che il profitto lordo
+    a TP copra almeno due commissioni fisse (apertura+chiusura).
+    """
     close = df["Close"].to_numpy()
     high  = df["High"].to_numpy()
     low   = df["Low"].to_numpy()
@@ -122,27 +128,36 @@ def backtest(df: pl.DataFrame,
         price     = close[i]
         timestamp = time[i]
 
-        if not in_position:
-            # apertura posizione LONG
-            if entries_long[i] or entries_short[i]:
-                in_position = True
-                is_short    = entries_short[i]
+        # stop se non ho nemmeno per pagare la fee di apertura
+        if cash <= FIXED_FEE:
+            break
 
+        if not in_position:
+            if entries_long[i] or entries_short[i]:
+                # decido direzione
+                is_short = bool(entries_short[i])
                 entry_price = price
                 entry_time  = timestamp
 
-                # applica la commissione di apertura
-                cash -= FIXED_FEE
+                # calcolo size basata sul cash disponibile
+                size_eur   = cash * params["exposure"]
+                entry_size = (size_eur * LEVERAGE) / entry_price
 
-                size_eur = cash * params["exposure"]
-                size     = (size_eur * LEVERAGE) / price
-                entry_size = size
-
-                # stop loss / take profit
+                # calcolo ATR e SL di base
                 atr_val = 0.0 if np.isnan(atr[i]) else atr[i]
                 sl_val  = atr_val * params["atr_factor"]
-                tp_val  = atr_val * params["atr_factor"] * 2
 
+                # TP di base (come prima)
+                base_tp_val = atr_val * params["atr_factor"] * 2
+
+                # calcolo quanto disturbo di prezzo mi serve per coprire due fee:
+                # PnL = price_diff * entry_size, quindi price_diff = (2*fee)/entry_size
+                required_price_diff = (2 * FIXED_FEE) / entry_size
+
+                # scelgo il TP più lontano tra base e quello richiesto
+                tp_val = max(base_tp_val, required_price_diff)
+
+                # definisco i prezzi SL e TP finali
                 if is_short:
                     sl_price = entry_price + sl_val
                     tp_price = entry_price - tp_val
@@ -150,33 +165,34 @@ def backtest(df: pl.DataFrame,
                     sl_price = entry_price - sl_val
                     tp_price = entry_price + tp_val
 
+                # ora apro: scalzo cash della fee
+                cash -= FIXED_FEE
+                in_position = True
+
         else:
-            # controlli per chiusura
+            # controllo condizioni di uscita
             if is_short:
-                sl_trigger   = price >= sl_price
-                tp_trigger   = price <= tp_price
-                exit_trigger = exits_short[i]
+                sl_trig  = price >= sl_price
+                tp_trig  = price <= tp_price
+                exit_sig = exits_short[i]
             else:
-                sl_trigger   = price <= sl_price
-                tp_trigger   = price >= tp_price
-                exit_trigger = exits_long[i]
+                sl_trig  = price <= sl_price
+                tp_trig  = price >= tp_price
+                exit_sig = exits_long[i]
 
             reason = None
-            if sl_trigger:
+            if sl_trig:
                 reason = "Stop Loss"
-            elif tp_trigger:
+            elif tp_trig:
                 reason = "Take Profit"
-            elif exit_trigger:
+            elif exit_sig:
                 reason = "Signal Exit"
 
             if reason:
-                # calcola PnL
-                if is_short:
-                    pnl = (entry_price - price) * entry_size
-                else:
-                    pnl = (price - entry_price) * entry_size
+                # calcolo PnL
+                pnl = ((entry_price - price) if is_short else (price - entry_price)) * entry_size
 
-                # incassa pnl, poi rimuovi commissione di chiusura
+                # incasso pnl e scalzo fee di chiusura
                 cash += pnl
                 cash -= FIXED_FEE
 
