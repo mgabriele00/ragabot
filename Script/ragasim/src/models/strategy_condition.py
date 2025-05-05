@@ -47,6 +47,7 @@ def generate_conditions_to_test() -> List[StrategyCondition]:
         List[StrategyCondition]: Una lista di oggetti StrategyCondition.
     """
     params = {
+<<<<<<< Updated upstream
         "rsi_entry": [35],
         "rsi_exit": [55],
         "bb_std": [1.75],
@@ -55,6 +56,15 @@ def generate_conditions_to_test() -> List[StrategyCondition]:
         "tp_mult": [0.02],
         "sl_mult": [0.006],
         "bb_width_threshold": [0.002]
+=======
+        "rsi_entry": [30,40,35],
+        "rsi_exit": [55,60,65,70],
+        "bb_std": [1.75, 2, 2.25],
+        "exposure": [0.1,0.2,0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+        "atr_window": [14, 20],
+        "atr_factor": [1.0,  2.0, 5, 10],
+        "bb_width_threshold": [0.001, 0.002]
+>>>>>>> Stashed changes
     }
 
     param_values_ordered = [

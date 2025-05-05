@@ -19,7 +19,12 @@ def simulate(close:np.ndarray, strategy_indicators:StrategyIndicators, strategy_
     final_equities = np.zeros(n_conditions, dtype=np.float32)
     conditions_indices = np.zeros(n_conditions, dtype=np.int32)
     max_drawdowns = np.zeros(n_conditions, dtype=np.float32)
-
+    trade_counts = np.zeros(n_conditions, dtype=np.float32)
+    gross_profits = np.zeros(n_conditions, dtype=np.float32)
+    gross_losss = np.zeros(n_conditions, dtype=np.float32)
+    avg_pnls = np.zeros(n_conditions, dtype=np.float32)
+    total_feess = np.zeros(n_conditions, dtype=np.float32)
+    fee_ratios = np.zeros(n_conditions, dtype=np.float32)
     
     for i in prange(n_conditions):
         condition = strategy_condition[i]
@@ -33,7 +38,7 @@ def simulate(close:np.ndarray, strategy_indicators:StrategyIndicators, strategy_
                 idx = j
                 break
         
-        final_equity, max_dd = backtest(
+        final_equity, max_dd, trade_count, gross_profit, gross_loss, avg_pnl, total_fees, fee_ratio  = backtest(
             close,
             strategy_indicators.atr[idx].values,
             signal,
@@ -47,8 +52,14 @@ def simulate(close:np.ndarray, strategy_indicators:StrategyIndicators, strategy_
         final_equities[i] = final_equity
         conditions_indices[i] = i
         max_drawdowns[i] = max_dd
+        trade_counts[i] = trade_count
+        gross_profits[i] =gross_profit
+        gross_losss[i] = gross_loss
+        avg_pnls[i] = avg_pnl
+        total_feess[i] = total_fees
+        fee_ratios[i] = fee_ratio
 
-    return final_equities, conditions_indices, max_drawdowns
+    return final_equities, conditions_indices, max_drawdowns, trade_counts, gross_profits, gross_losss, avg_pnls, total_feess, fee_ratios
 
 def main(year: int):
     _, open_, high, low, close = load_forex_data_dohlc(year)
@@ -58,7 +69,7 @@ def main(year: int):
     print(f"Number of conditions to test: {n_conditions}")
     print(f"Starting simulation for year: {year}...")
     # Ottieni equity_curves e conditions_indices separatamente
-    final_equities, condition_indices, max_drawdowns = simulate(close, strategy_indicators, strategy_conditions_list)
+    final_equities, condition_indices, max_drawdowns, trade_counts, gross_profits, gross_losss, avg_pnls, total_feess, fee_ratios = simulate(close, strategy_indicators, strategy_conditions_list)
     print("Simulation finished.")
     print("Max equity:", np.max(final_equities))
     best_idx = np.argmax(final_equities)
@@ -74,11 +85,22 @@ def main(year: int):
     print("Exposure: ", condition.exposure)
     print("Atr Window: ", condition.atr_window)
     print("Max dd:", np.max(max_drawdowns))
-    return final_equities, condition_indices, max_drawdowns
+    print("Trade counts", trade_counts[best_idx])
+    print("Gross Profit", gross_profits[best_idx])
+    print("Gross Loss", gross_losss[best_idx])
+    print("Avg PLN", avg_pnls[best_idx])
+    print("Total Fees", total_feess[best_idx])
+    print("fee ratios", fee_ratios[best_idx])
+    return final_equities, condition_indices, max_drawdowns, trade_counts, gross_profits, gross_losss, avg_pnls, total_feess, fee_ratios
 
 if __name__ == '__main__':
+<<<<<<< Updated upstream
     years = [2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
     #years = [2013]
+=======
+    years = [2013]
+
+>>>>>>> Stashed changes
     os.makedirs("results", exist_ok=True)
 
     # Combina tutto usando la funzione esterna

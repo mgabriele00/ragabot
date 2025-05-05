@@ -23,8 +23,8 @@ def get_signal(strategy_indicators: StrategyIndicators, strategy_condition: Stra
     lower = strategy_indicators.bollinger[idx].lower
     bb_width = (upper - lower)
 
-    buy_signal  = (rsi < strategy_condition.rsi_entry) & (close < lower) & bullish & (bb_width < bb_width_threshold)
-    sell_signal = (rsi > strategy_condition.rsi_exit)  & (close > upper) & bearish & (bb_width < bb_width_threshold)
+    buy_signal  = (rsi < strategy_condition.rsi_entry) & (close < lower) & bullish & (bb_width >  bb_width_threshold)
+    sell_signal = (rsi > strategy_condition.rsi_exit)  & (close > upper) & bearish & (bb_width >  bb_width_threshold)
 
     # costruisci array di segnali: 1=buy, 0=none, -1=sell
     signals = np.zeros(rsi.shape, np.int64)
