@@ -8,7 +8,7 @@ from typing import List
 # a seconda della struttura del tuo progetto
 from models.strategy_condition import StrategyCondition # Assicurati che questo import funzioni
 
-FOLDER = "dati_forex/EURUSD"  # Nome della cartella contenente i file CSV
+FOLDER = "./dati_forex/EURUSD"  # Nome della cartella contenente i file CSV
 
 def load_forex_data_dohlc(year) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     script_dir = os.path.dirname(__file__)
@@ -98,7 +98,7 @@ def save_results_to_csv(results: np.ndarray, strategy_conditions: list[StrategyC
         # Scrivi l'intestazione: parametri della condizione + metriche di performance
         header = [
             'ConditionIndex',
-            'rsi_entry', 'rsi_exit', 'exposure', 'atr_factor', 'bb_std', 'atr_window', 'bb_width_threshold',
+            'rsi_entry', 'rsi_exit', 'exposure', 'sl_mult', 'tp_mult' 'bb_std', 'atr_window', 'bb_width_threshold',
             'FinalEquity', 'FinalPnL', 'MaxDrawdown', 'WinRate' # Metriche
         ]
         writer.writerow(header)
@@ -110,7 +110,7 @@ def save_results_to_csv(results: np.ndarray, strategy_conditions: list[StrategyC
             row_data = [
                 i,
                 condition.rsi_entry, condition.rsi_exit, condition.exposure,
-                condition.atr_factor, condition.bb_std, condition.atr_window, condition.bb_width_threshold,
+                condition.sl_mult, condition.tp_mult, condition.bb_std, condition.atr_window, condition.bb_width_threshold,
                 results[i, 0], results[i, 1], results[i, 2], results[i, 3] # Equity, PnL, MD, WR
             ]
             writer.writerow(row_data)
@@ -131,7 +131,8 @@ def build_polars_table_for_year(
         "rsi_entry": [float(c.rsi_entry) for c in strategy_conditions],
         "rsi_exit": [float(c.rsi_exit) for c in strategy_conditions],
         "exposure": [float(c.exposure) for c in strategy_conditions],
-        "atr_factor": [float(c.atr_factor) for c in strategy_conditions],
+        "sl_mult": [float(c.sl_mult) for c in strategy_conditions],
+        "tp_mult": [float(c.tp_mult) for c in strategy_conditions],
         "bb_std": [float(c.bb_std) for c in strategy_conditions],
         "atr_window": [int(c.atr_window) for c in strategy_conditions],
         "bb_width_threshold": [float(c.bb_width_threshold) for c in strategy_conditions],
@@ -165,6 +166,6 @@ def combine_all_years_by_parameters(
         else:
             df_merged = df_merged.join(df_year, on=[
                 "rsi_entry", "rsi_exit", "exposure",
-                "atr_factor", "bb_std", "atr_window", "bb_width_threshold"
+                "sl_mult", "tp_mult", "bb_std", "atr_window", "bb_width_threshold"
             ])
     return df_merged

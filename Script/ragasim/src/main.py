@@ -38,8 +38,8 @@ def simulate(close:np.ndarray, strategy_indicators:StrategyIndicators, strategy_
             strategy_indicators.atr[idx].values,
             signal,
             1000,
-            condition.atr_factor,
-            condition.atr_factor,
+            condition.sl_mult,
+            condition.tp_mult,
             condition.exposure,
             30
         )
@@ -69,22 +69,16 @@ def main(year: int):
     print("RSI Exit: ", condition.rsi_exit)
     print("BB Width: ", condition.bb_width_threshold)
     print("BB Std: ", condition.bb_std)
-    print("ATR Factor: ", condition.atr_factor)
+    print("SL Mult: ", condition.sl_mult)
+    print("TP Mult: ", condition.tp_mult)
     print("Exposure: ", condition.exposure)
-    print("ATR Factor: ", condition.atr_factor)
     print("Atr Window: ", condition.atr_window)
     print("Max dd:", np.max(max_drawdowns))
     return final_equities, condition_indices, max_drawdowns
 
-#if __name__ == '__main__':
-    #years = [2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
-#    years = [2013]
-#    for year in years:
-#        main(year)
-
 if __name__ == '__main__':
     years = [2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
-
+    #years = [2013]
     os.makedirs("results", exist_ok=True)
 
     # Combina tutto usando la funzione esterna

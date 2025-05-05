@@ -35,8 +35,9 @@ def backtest(close, atr, signals, initial_equity, sl_mult, tp_mult, exposure, le
             entry_price = price
             position_size = (exposure * realized_equity * leverage) / entry_price
             realized_equity -= np.float32(fixed_fee)
-            stop_loss = price - signal * sl_mult * atr_i
-            take_profit = price + signal * tp_mult * atr_i * 4 #TODO: eliminare 2
+            #stop_loss = price - signal * sl_mult * atr_i
+            stop_loss = price - signal * sl_mult
+            take_profit = price + signal * tp_mult
 
         # 2.2 Controllo uscita
         exit_price = None
