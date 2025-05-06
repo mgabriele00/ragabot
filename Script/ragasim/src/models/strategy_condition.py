@@ -47,14 +47,14 @@ def generate_conditions_to_test() -> List[StrategyCondition]:
         List[StrategyCondition]: Una lista di oggetti StrategyCondition.
     """
     params = {
-        "rsi_entry": list(range(30, 46)),
-        "rsi_exit": list(range(55, 71)),
+        "rsi_entry": [30, 35, 40],
+        "rsi_exit": [50, 55, 60, 65, 70],
         "bb_std": [1.5, 1.75, 2.0],
-        "exposure": [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
-        "atr_window": [14, 20],
-        "tp_mult": [1, 2, 5, 10, 15],
-        "sl_mult": [1, 2, 5, 7],
-        "bb_width_threshold": [1, 1.5, 2, 3]
+        "exposure": [0.9],
+        "atr_window": [14],
+        "tp_mult": [1, 2, 3, 5, 6, 7, 8, 9, 10],
+        "sl_mult": [1, 2, 3, 4, 5, 6],
+        "bb_width_threshold": [0.0008, 0.001, 0.002, 0.003, 1]
     }
 
     param_values_ordered = [
