@@ -1,8 +1,8 @@
 import numpy as np
 from numba import njit
 
-from models.strategy_condition import StrategyCondition
-from models.strategy_indicators import StrategyIndicators
+from model.strategy_condition import StrategyCondition
+from model.strategy_indicators import StrategyIndicators
 
 @njit(fastmath=True, parallel=False)
 def get_signal(strategy_indicators: StrategyIndicators, strategy_condition: StrategyCondition, close: np.ndarray) -> np.ndarray:

@@ -3,7 +3,7 @@ import numpy as np
 import polars as pl
 import os
 from typing import List
-from models.strategy_condition import StrategyCondition # Assicurati che questo import funzioni
+from model.strategy_condition import StrategyCondition # Assicurati che questo import funzioni
 
 FOLDER = "./dati_forex/EURUSD"  # Nome della cartella contenente i file CSV
 
@@ -120,11 +120,12 @@ def build_polars_table_for_year(
         "rsi_entry": [float(c.rsi_entry) for c in strategy_conditions],
         "rsi_exit": [float(c.rsi_exit) for c in strategy_conditions],
         "exposure": [float(c.exposure) for c in strategy_conditions],
-        "sl_mult": [float(c.sl_mult) for c in strategy_conditions],
-        "tp_mult": [float(c.tp_mult) for c in strategy_conditions],
+        "tp_mult": [float(c.sl_mult) for c in strategy_conditions],
+        "sl_mult": [float(c.tp_mult) for c in strategy_conditions],
         "bb_std": [float(c.bb_std) for c in strategy_conditions],
         "atr_window": [int(c.atr_window) for c in strategy_conditions],
         "bb_width_threshold": [float(c.bb_width_threshold) for c in strategy_conditions],
+        "leverage": [int(c.leverage) for c in strategy_conditions],
         f"equity_{year}": final_equities,
         f"drawdown_{year}": drawdowns
     })
@@ -145,7 +146,7 @@ def combine_all_years_by_parameters(
     for year in years:
         final_equities, _, drawdowns = main_fn(year)
         if strategy_conditions is None:
-            from models.strategy_condition import generate_conditions_to_test
+            from model.strategy_condition import generate_conditions_to_test
             strategy_conditions = generate_conditions_to_test()
 
         df_year = build_polars_table_for_year(strategy_conditions, final_equities, drawdowns, year)
@@ -155,6 +156,6 @@ def combine_all_years_by_parameters(
         else:
             df_merged = df_merged.join(df_year, on=[
                 "rsi_entry", "rsi_exit", "exposure",
-                "sl_mult", "tp_mult", "bb_std", "atr_window", "bb_width_threshold"
+                "tp_mult", "sl_mult", "bb_std", "atr_window", "bb_width_threshold", "leverage"
             ])
     return df_merged

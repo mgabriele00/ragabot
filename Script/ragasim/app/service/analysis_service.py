@@ -9,61 +9,71 @@ import polars as pl
 def calculate_max_drawdown_from_initial(equity_curve: np.ndarray, initial_equity: float32) -> float32:
     n = equity_curve.shape[0]
     min_equity = float32(initial_equity)
-
-    for i in range(n):
-        v = equity_curve[i]
+    for v in equity_curve:
+        # Ignoro i valori zero
+        if v <= 0:
+            continue
+        # Se trovo un valore > 0 ma minore del minimo corrente, aggiorno
         if v < min_equity:
             min_equity = v
+    
+    return (initial_equity - min_equity)/ initial_equity
 
-    return (initial_equity - min_equity) / initial_equity
 
-
-
-import polars as pl
 
 def compute_strategy_score(
     df: pl.DataFrame,
     years: list[int],
-    alpha=0.7,
-    beta=0.2,
-    gamma=0.1
+    initial: float = 1_000.0,
+    alpha: float = 0.7,
+    beta:  float = 0.2,
+    gamma: float = 0.1
 ) -> pl.DataFrame:
-    equity_cols   = [f"equity_{y}"   for y in years]
-    drawdown_cols = [f"drawdown_{y}" for y in years]
-
-    # 1) medie e media dei quadrati
+    # 1) Definisco i nomi delle colonne di rendimento e drawdown (già in 0–1)
+    ret_cols = [f"ret_{y}" for y in years]
+    dd_cols  = [f"dd_{y}"  for y in years]
+    
+    # 2) Aggiungo le colonne di rendimento percentuale e drawdown
     df = df.with_columns([
-        pl.mean_horizontal(pl.col(equity_cols)).alias("mean_equity"),
-        pl.mean_horizontal(pl.col(drawdown_cols)).alias("mean_drawdown"),
-        pl.mean_horizontal([pl.col(c) ** 2 for c in equity_cols]).alias("mean_squared_equity"),
+        # rendimento: equity_y / initial - 1
+        ((pl.col(f"equity_{y}") / initial) - 1).alias(f"ret_{y}")
+        for y in years
+    ] + [
+        # drawdown_y: prendo direttamente il valore in 0–1
+        pl.col(f"drawdown_{y}").alias(f"dd_{y}")
+        for y in years
     ])
-
-    # 2) varianza e deviazione standard
+    
+    # 3a) Calcolo media dei rendimenti, media dei quadrati e media dei drawdown
     df = df.with_columns([
-        # varianza = E[X^2] - (E[X])^2
-        (pl.col("mean_squared_equity") - pl.col("mean_equity")**2).alias("var_equity"),
-        # deviazione standard usando il metodo .sqrt()
-        (pl.col("mean_squared_equity") - pl.col("mean_equity")**2)
-          .sqrt()
-          .alias("std_equity"),
+        pl.mean_horizontal(pl.col(ret_cols)).alias("mean_return"),
+        pl.mean_horizontal([pl.col(c)**2 for c in ret_cols]).alias("mean_sq_return"),
+        pl.mean_horizontal(pl.col(dd_cols)).alias("mean_drawdown"),
     ])
-
-    # 3) volatilità relativa = std_equity / mean_equity
+    
+    # 3b) Varianza e deviazione standard assoluta dei rendimenti
     df = df.with_columns([
-        (pl.col("std_equity") / pl.col("mean_equity")).alias("rel_volatility")
+        # var_return = E[R^2] - (E[R])^2
+        (pl.col("mean_sq_return") - pl.col("mean_return")**2).alias("var_return"),
+        # std_return = sqrt(var_return)
+        (pl.col("mean_sq_return") - pl.col("mean_return")**2).sqrt().alias("std_return"),
     ])
-
-    # 4) score = α·mean_equity - β·mean_drawdown - γ·rel_volatility
+    
+    # 4) Coefficiente di variazione (volatilità relativa, unitless)
+    df = df.with_columns([
+        (pl.col("std_return") / pl.col("mean_return")).alias("rel_volatility")
+    ])
+    
+    # 5) Calcolo dello score finale
     df = df.with_columns([
         (
-            alpha * pl.col("mean_equity")
+            alpha * pl.col("mean_return")
           - beta  * pl.col("mean_drawdown")
           - gamma * pl.col("rel_volatility")
         ).alias("score")
     ])
-
+    
     return df
-
 
 
 

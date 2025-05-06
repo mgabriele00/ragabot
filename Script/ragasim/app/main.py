@@ -2,15 +2,15 @@
 from typing import List
 import numpy as np
 import os
-from models.strategy_indicators import StrategyIndicators, generate_indicators_to_test
+from model.strategy_indicators import StrategyIndicators, generate_indicators_to_test
 from service.signal_service import get_signal
-from utils.data_utils import load_forex_data_dohlc, save_results_to_csv, combine_all_years_by_parameters, build_polars_table_for_year # Rimuovi save_results_to_csv da qui se definita sotto
+from utils.data_utils import load_forex_data_dohlc, combine_all_years_by_parameters, build_polars_table_for_year # Rimuovi save_results_to_csv da qui se definita sotto
 from service.backtesting_service import backtest
 from numba import njit, prange
-from models.strategy_condition import StrategyCondition, generate_conditions_to_test
+from model.strategy_condition import StrategyCondition, generate_conditions_to_test
 from service.analysis_service import calculate_max_drawdown_from_initial, compute_strategy_score
-
-
+import polars as pl
+from datetime import datetime
 
 @njit(parallel=True, fastmath=True)
 def simulate(close:np.ndarray, strategy_indicators:StrategyIndicators, strategy_condition: List[StrategyCondition]):
@@ -81,13 +81,14 @@ def main(year: int):
     return final_equities, condition_indices, max_drawdowns
 
 if __name__ == '__main__':
-    years = [2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
+    years = [2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024]
     #years = [2013]
     os.makedirs("results", exist_ok=True)
 
     # Combina tutto usando la funzione esterna
     df_all = combine_all_years_by_parameters(years, main)
-    df_scored = compute_strategy_score(df_all, years, alpha=0.5, beta=0.3, gamma=0.2)
-    df_scored = df_scored.sort("score", descending=True)
-    df_scored.write_csv("results/scored_strategies_by_params.csv")
-    print("✅ File salvato in results/strategies_by_params_all_years.csv")
+    result_df = compute_strategy_score(df_all, years)
+    top500 = (result_df.sort("score",descending=True).head(500))
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    top500.write_csv(f"Script/ragasim/app/results/top500_{timestamp}.csv")
+    print("CSV salvato")   
