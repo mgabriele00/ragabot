@@ -8,3 +8,9 @@ orders/partial/
 **/.DS_Store
 
 **/orders
+
+# Ignora i file .pyc
+**/*.pyc
+
+# Ignora le cartelle __pycache__
+**/__pycache__

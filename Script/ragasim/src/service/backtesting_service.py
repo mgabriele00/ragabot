@@ -3,8 +3,8 @@ from numba import njit
 import math
 from service.analysis_service import calculate_max_drawdown_from_initial
 
-@njit(fastmath=False)
-def backtest(close, atr, signals, initial_equity, sl_mult, tp_mult, exposure, leverage, fixed_fee=np.float32(2.6)) -> np.ndarray:
+@njit(fastmath=True)
+def backtest(close, atr, signals, start_index, initial_equity, sl_mult, tp_mult, exposure, leverage, fixed_fee, lot_size) -> np.ndarray:
     # Preallochiamo un array NumPy della dimensione corretta
     equity_curve = np.full(len(close), np.float32(0.0))
     
@@ -15,12 +15,6 @@ def backtest(close, atr, signals, initial_equity, sl_mult, tp_mult, exposure, le
     stop_loss = np.float32(0.0)
     take_profit = np.float32(0.0)
     position_size = np.float32(0.0)
-
-    # 1. Pre-loop: barre con ATR NaN
-    start_index = 0
-    while start_index < len(atr) and math.isnan(atr[start_index]):
-        equity_curve[start_index] = realized_equity
-        start_index += 1
 
     # 2. Loop principale
     for i in range(start_index, len(close)):
@@ -34,10 +28,9 @@ def backtest(close, atr, signals, initial_equity, sl_mult, tp_mult, exposure, le
             position_side = signal
             entry_price = price
             position_size = (exposure * realized_equity * leverage) / entry_price
-            realized_equity -= np.float32(fixed_fee) * position_size
-            #stop_loss = price - signal * sl_mult * atr_i
-            stop_loss = price - signal * sl_mult
-            take_profit = price + signal * tp_mult
+            realized_equity -= np.float32(fixed_fee) * position_size / lot_size
+            stop_loss = price - signal * sl_mult * atr_i
+            take_profit = price + signal * tp_mult * atr_i
 
         # 2.2 Controllo uscita
         exit_price = None
@@ -64,7 +57,7 @@ def backtest(close, atr, signals, initial_equity, sl_mult, tp_mult, exposure, le
         if exit_price is not None:
             pnl = position_size * (exit_price - entry_price) * position_side
             realized_equity += pnl
-            realized_equity -= np.float32(fixed_fee) * position_size
+            realized_equity -= np.float32(fixed_fee) * position_size / lot_size
             position_open = False
             position_side = 0
             entry_price = np.float32(0.0)
@@ -88,6 +81,5 @@ def backtest(close, atr, signals, initial_equity, sl_mult, tp_mult, exposure, le
 
         # 2.6 Registra equity di fine barra
         equity_curve[i] = current_equity
-    max_dd = calculate_max_drawdown_from_initial(equity_curve, initial_equity)
-    
-    return equity_curve[-1], max_dd
+            
+    return equity_curve

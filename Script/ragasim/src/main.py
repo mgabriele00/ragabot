@@ -8,11 +8,11 @@ from utils.data_utils import load_forex_data_dohlc, save_results_to_csv, combine
 from service.backtesting_service import backtest
 from numba import njit, prange
 from models.strategy_condition import StrategyCondition, generate_conditions_to_test
-from service.analysis_service import compute_strategy_score
+from service.analysis_service import calculate_max_drawdown_from_initial, compute_strategy_score
 
 
 
-@njit(parallel=True, fastmath=False)
+@njit(parallel=True, fastmath=True)
 def simulate(close:np.ndarray, strategy_indicators:StrategyIndicators, strategy_condition: List[StrategyCondition]):
     n_conditions = len(strategy_condition)
     
@@ -33,20 +33,24 @@ def simulate(close:np.ndarray, strategy_indicators:StrategyIndicators, strategy_
                 idx = j
                 break
         
-        final_equity, max_dd = backtest(
+        equity_curve = backtest(
             close,
             strategy_indicators.atr[idx].values,
             signal,
-            1000,
+            condition.start_index,
+            condition.initial_equity,
             condition.sl_mult,
             condition.tp_mult,
             condition.exposure,
-            30
+            condition.leverage,
+            condition.fixed_fee,
+            condition.lot_size
         )
         
+        final_equity = equity_curve[-1]
         final_equities[i] = final_equity
         conditions_indices[i] = i
-        max_drawdowns[i] = max_dd
+        max_drawdowns[i] = calculate_max_drawdown_from_initial(equity_curve, condition.initial_equity)
 
     return final_equities, conditions_indices, max_drawdowns
 

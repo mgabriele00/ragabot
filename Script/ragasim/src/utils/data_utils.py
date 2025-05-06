@@ -3,29 +3,18 @@ import numpy as np
 import polars as pl
 import os
 from typing import List
-# Importa StrategyCondition per il type hinting (se non già fatto)
-# Potrebbe essere necessario aggiustare il percorso relativo o assoluto
-# a seconda della struttura del tuo progetto
 from models.strategy_condition import StrategyCondition # Assicurati che questo import funzioni
 
 FOLDER = "./dati_forex/EURUSD"  # Nome della cartella contenente i file CSV
 
 def load_forex_data_dohlc(year) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     script_dir = os.path.dirname(__file__)
-    # Costruisci il percorso completo alla cartella FOLDER
-    # NOTA: Se FOLDER è un percorso assoluto, os.path.join potrebbe non fare quello che ti aspetti.
-    # Se FOLDER è sempre lo stesso percorso assoluto, puoi usarlo direttamente.
-    # Se FOLDER è relativo allo script_dir, allora os.path.join è corretto.
-    # Dato che FOLDER inizia con '/', è un percorso assoluto.
     folder_path = FOLDER # Usa direttamente il percorso assoluto
     try:
-        # Lista i file nella cartella specificata
         files_in_folder = os.listdir(folder_path)
-        # Filtra i file CSV per l'anno specificato
         files = sorted([f for f in files_in_folder if f.endswith('.csv') and str(year) in f])
     except FileNotFoundError:
         print(f"ERRORE: La cartella dei dati '{folder_path}' non è stata trovata.")
-        # Restituisci tuple di array vuoti invece di DataFrame vuoto per coerenza
         return np.array([]), np.array([]), np.array([]), np.array([]), np.array([])
 
     if not files:
