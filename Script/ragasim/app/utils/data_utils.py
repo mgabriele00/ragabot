@@ -87,7 +87,7 @@ def save_results_to_csv(results: np.ndarray, strategy_conditions: list[StrategyC
         # Scrivi l'intestazione: parametri della condizione + metriche di performance
         header = [
             'ConditionIndex',
-            'rsi_entry', 'rsi_exit', 'exposure', 'sl_mult', 'tp_mult' 'bb_std', 'atr_window', 'bb_width_threshold',
+            'rsi_entry', 'rsi_exit', 'exposure', 'tp_mult', 'sl_mult' 'bb_std', 'atr_window', 'bb_width_threshold',
             'FinalEquity', 'FinalPnL', 'MaxDrawdown', 'WinRate' # Metriche
         ]
         writer.writerow(header)
