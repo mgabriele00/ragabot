@@ -20,7 +20,7 @@ spec = [
     ('start_index', int32),
 ]
 
-
+"""
 params = {
     "rsi_entry": [25, 30, 35, 40, 45],
     "rsi_exit": [50, 55, 60, 65, 70],
@@ -36,7 +36,7 @@ params = {
     "lot_size": [100000],
     "start_index": [14]
 }
-
+"""
 
 """
 params = {
@@ -56,7 +56,7 @@ params = {
 }
 
 """
-"""
+
 params = {
     "rsi_entry": [44],
     "rsi_exit": [50],
@@ -64,7 +64,7 @@ params = {
     "exposure": [0.9],
     "atr_window": [14],
     "tp_mult": [16],
-    "sl_mult": [1],
+    "sl_mult": [0.8],
     "bb_width_threshold": [0.008],
     "fixed_fee": [2],
     "initial_equity": [1000],
@@ -72,7 +72,7 @@ params = {
     "lot_size": [100000],
     "start_index": [14]
 }
-"""
+
 param_values_ordered = [
     params["rsi_entry"],
     params["rsi_exit"],

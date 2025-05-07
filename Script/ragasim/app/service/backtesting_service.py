@@ -39,7 +39,7 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
 
         # 2.2 Controllo uscita
         exit_price = None
-        if position_open and i > entry_bar :
+        if position_open:
             # uscita per inversione di segnale
             if position_side == 1 and signal == -1:
                 exit_price = price
@@ -48,14 +48,14 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
             else:
                 # uscita per TP/SL
                 if position_side == 1:
-                    if high_i >= take_profit:
+                    if price >= take_profit:
                         exit_price = take_profit
-                    elif low_i <= stop_loss:
+                    elif price <= stop_loss:
                         exit_price = stop_loss
                 else:
-                    if low_i <= take_profit:
+                    if price <= take_profit:
                         exit_price = take_profit
-                    elif high_i >= stop_loss:
+                    elif price >= stop_loss:
                         exit_price = stop_loss
 
         # 2.3 Realizza PnL se serve
@@ -79,9 +79,19 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
 
         current_equity = realized_equity + unrealized
 
-        # 2.5 Bancarotta: fill-zero e break
-        if current_equity <= 0:
-            # Riempi tutto il resto dell'array con zeri
+        if position_open and i>entry_bar:
+            if position_side==1:
+                terminal_exit = low_i
+            else:
+                terminal_exit = high_i
+            
+            terminal_pnl = position_size * (terminal_exit - entry_price) * position_side
+            terminal_fee = np.float32(fixed_fee) * position_size / lot_size
+            terminal_equity = realized_equity + terminal_pnl - terminal_fee
+        else:
+            terminal_equity = realized_equity
+            
+        if terminal_equity <= 0:
             equity_curve[i:] = np.float32(0.0)
             break
 
