@@ -36,11 +36,11 @@ def compute_strategy_score(
     # 2) Aggiungo le colonne di rendimento percentuale e drawdown
     df = df.with_columns([
         # rendimento: equity_y / initial - 1
-        ((pl.col(f"equity_{y}") / initial) - 1).alias(f"ret_{y}")
+        (((pl.col(f"equity_{y}") / initial) - 1)/10_000).alias(f"ret_{y}")
         for y in years
     ] + [
         # drawdown_y: prendo direttamente il valore in 0–1
-        pl.col(f"drawdown_{y}").alias(f"dd_{y}")
+        (pl.col(f"drawdown_{y}")/10_000).alias(f"dd_{y}")
         for y in years
     ])
     

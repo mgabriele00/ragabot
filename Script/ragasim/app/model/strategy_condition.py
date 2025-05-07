@@ -19,7 +19,8 @@ spec = [
     ('lot_size', int32),
     ('start_index', int32),
 ]
-"""
+
+
 params = {
     "rsi_entry": [25, 30, 35, 40, 45],
     "rsi_exit": [50, 55, 60, 65, 70],
@@ -27,14 +28,16 @@ params = {
     "exposure": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
     "atr_window": [14],
     "tp_mult": [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
-    "sl_mult": [0.2, 0.3, 0.4, 0.5, 1, 1.5, 2, 2.5],
-    "bb_width_threshold": [0.001, 0.002, 0.003, 0.005, 0.008, 0.01, 0.015, 0.02],
+    "sl_mult": [ 0.5, 1, 1.5, 2, 2.5],
+    "bb_width_threshold": [0.001, 0.005, 0.008, 0.01, 0.02],
     "fixed_fee": [2.0],
     "initial_equity": [1000],
     "leverage": [30],
     "lot_size": [100000],
     "start_index": [14]
 }
+
+
 """
 params = {
     "rsi_entry": [40, 41, 42, 43, 44, 45],
@@ -52,7 +55,24 @@ params = {
     "start_index": [14]
 }
 
-
+"""
+"""
+params = {
+    "rsi_entry": [44],
+    "rsi_exit": [50],
+    "bb_std": [1.3],
+    "exposure": [0.9],
+    "atr_window": [14],
+    "tp_mult": [16],
+    "sl_mult": [1],
+    "bb_width_threshold": [0.008],
+    "fixed_fee": [2],
+    "initial_equity": [1000],
+    "leverage": [30],
+    "lot_size": [100000],
+    "start_index": [14]
+}
+"""
 param_values_ordered = [
     params["rsi_entry"],
     params["rsi_exit"],

@@ -4,7 +4,7 @@ import math
 from service.analysis_service import calculate_max_drawdown_from_initial
 
 @njit(fastmath=True)
-def backtest(close, atr, signals, start_index, initial_equity, sl_mult, tp_mult, exposure, leverage, fixed_fee, lot_size) -> np.ndarray:
+def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mult, tp_mult, exposure, leverage, fixed_fee, lot_size) -> np.ndarray:
     # Preallochiamo un array NumPy della dimensione corretta
     equity_curve = np.full(len(close), np.float32(0.0))
     
@@ -15,13 +15,17 @@ def backtest(close, atr, signals, start_index, initial_equity, sl_mult, tp_mult,
     stop_loss = np.float32(0.0)
     take_profit = np.float32(0.0)
     position_size = np.float32(0.0)
-
+    entry_bar = np.int32(-1)
+    
     # 2. Loop principale
     for i in range(start_index, len(close)):
         price = np.float32(close[i])
         atr_i = np.float32(atr[i])
         signal = signals[i]
+        high_i = np.float32(high[i])
+        low_i = np.float32(low[i])
 
+        
         # 2.1 Apertura posizione
         if not position_open and signal != 0:
             position_open = True
@@ -31,10 +35,11 @@ def backtest(close, atr, signals, start_index, initial_equity, sl_mult, tp_mult,
             realized_equity -= np.float32(fixed_fee) * position_size / lot_size
             stop_loss = price - signal * sl_mult * atr_i
             take_profit = price + signal * tp_mult * atr_i
+            entry_bar = i
 
         # 2.2 Controllo uscita
         exit_price = None
-        if position_open:
+        if position_open and i > entry_bar :
             # uscita per inversione di segnale
             if position_side == 1 and signal == -1:
                 exit_price = price
@@ -43,14 +48,14 @@ def backtest(close, atr, signals, start_index, initial_equity, sl_mult, tp_mult,
             else:
                 # uscita per TP/SL
                 if position_side == 1:
-                    if price >= take_profit:
+                    if high_i >= take_profit:
                         exit_price = take_profit
-                    elif price <= stop_loss:
+                    elif low_i <= stop_loss:
                         exit_price = stop_loss
                 else:
-                    if price <= take_profit:
+                    if low_i <= take_profit:
                         exit_price = take_profit
-                    elif price >= stop_loss:
+                    elif high_i >= stop_loss:
                         exit_price = stop_loss
 
         # 2.3 Realizza PnL se serve
@@ -64,6 +69,7 @@ def backtest(close, atr, signals, start_index, initial_equity, sl_mult, tp_mult,
             stop_loss = np.float32(0.0)
             take_profit = np.float32(0.0)
             position_size = np.float32(0.0)
+            entry_bar = np.int32(-1)
 
         # 2.4 Mark-to-market intrabar
         if position_open:

@@ -13,7 +13,7 @@ import polars as pl
 from datetime import datetime
 
 @njit(parallel=True, fastmath=True)
-def simulate(close:np.ndarray, strategy_indicators:StrategyIndicators, strategy_condition: List[StrategyCondition]):
+def simulate(close:np.ndarray, high:np.ndarray, low:np.ndarray, strategy_indicators:StrategyIndicators, strategy_condition: List[StrategyCondition]):
     n_conditions = len(strategy_condition)
     
     final_equities = np.zeros(n_conditions, dtype=np.float32)
@@ -35,6 +35,8 @@ def simulate(close:np.ndarray, strategy_indicators:StrategyIndicators, strategy_
         
         equity_curve = backtest(
             close,
+            high,
+            low,
             strategy_indicators.atr[idx].values,
             signal,
             condition.start_index,
@@ -62,7 +64,7 @@ def main(year: int):
     print(f"Number of conditions to test: {n_conditions}")
     print(f"Starting simulation for year: {year}...")
     # Ottieni equity_curves e conditions_indices separatamente
-    final_equities, condition_indices, max_drawdowns = simulate(close, strategy_indicators, strategy_conditions_list)
+    final_equities, condition_indices, max_drawdowns = simulate(close, high, low, strategy_indicators, strategy_conditions_list)
     print("Simulation finished.")
     print("Max equity:", np.max(final_equities))
     best_idx = np.argmax(final_equities)
