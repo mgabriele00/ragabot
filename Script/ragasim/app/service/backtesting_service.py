@@ -49,14 +49,14 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
                 # uscita per TP/SL
                 if position_side == 1:
                     if price >= take_profit:
-                        exit_price = take_profit
+                        exit_price = price
                     elif price <= stop_loss:
-                        exit_price = stop_loss
+                        exit_price = price
                 else:
                     if price <= take_profit:
-                        exit_price = take_profit
+                        exit_price = price
                     elif price >= stop_loss:
-                        exit_price = stop_loss
+                        exit_price = price
 
         # 2.3 Realizza PnL se serve
         if exit_price is not None:
