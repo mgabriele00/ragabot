@@ -40,14 +40,14 @@ params = {
 """
 
 params = {
-    "rsi_entry": [40, 30, 35,20],
-    "rsi_exit": [60,65,70,80],
-    "bb_std": [1.75, 2.0, 2.25],
-    "exposure": [0.5, 0.7, 0.9],
-    "atr_window": [14,20],
-    "tp_mult": [9, 10,3,16,2,3],
-    "sl_mult": [0.1,1,2,3,10],
-    "bb_width_threshold": [0.001,0.005,0.01,0.0005],
+    "rsi_entry": [30],
+    "rsi_exit": [75],
+    "bb_std": [2],
+    "exposure": [0.9],
+    "atr_window": [14],
+    "tp_mult": [22],
+    "sl_mult": [14],
+    "bb_width_threshold": [0.001],
     "fixed_fee": [2.1],
     "initial_equity": [1000],
     "leverage": [30],
