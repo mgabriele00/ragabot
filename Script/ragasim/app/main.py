@@ -46,7 +46,8 @@ def simulate(close:np.ndarray, high:np.ndarray, low:np.ndarray, strategy_indicat
             condition.exposure,
             condition.leverage,
             condition.fixed_fee,
-            condition.lot_size
+            condition.lot_size,
+            condition.waiting_number
         )
         
         final_equity = equity_curve[-1]
@@ -80,10 +81,11 @@ def main(year: int):
     print("Exposure: ", condition.exposure)
     print("Atr Window: ", condition.atr_window)
     print("Max dd:", np.max(max_drawdowns))
+    print("Waiting Number:", condition.waiting_number)
     return final_equities, condition_indices, max_drawdowns
 
 if __name__ == '__main__':
-    years = [2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024]
+    years = [2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
     #years = [2013]
     os.makedirs("results", exist_ok=True)
 

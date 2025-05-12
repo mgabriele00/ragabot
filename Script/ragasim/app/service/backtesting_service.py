@@ -4,7 +4,7 @@ import math
 from service.analysis_service import calculate_max_drawdown_from_initial
 
 @njit(fastmath=True)
-def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mult, tp_mult, exposure, leverage, fixed_fee, lot_size) -> np.ndarray:
+def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mult, tp_mult, exposure, leverage, fixed_fee, lot_size, waiting_number) -> np.ndarray:
     # Preallochiamo un array NumPy della dimensione corretta
     equity_curve = np.full(len(close), np.float32(0.0))
     
@@ -16,6 +16,9 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
     take_profit = np.float32(0.0)
     position_size = np.float32(0.0)
     entry_bar = np.int32(-1)
+    waiting_for_exit = False
+    exit_price = None
+    waiting_count = 0
     
     # 2. Loop principale
     for i in range(start_index, len(close)):
@@ -24,7 +27,23 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
         signal = signals[i]
         high_i = np.float32(high[i])
         low_i = np.float32(low[i])
-
+        
+        skip_exit_checks = False
+        
+        if waiting_for_exit and position_open and exit_price is not None:
+                # Se la posizione è aperta, controlla se il prezzo ha toccato il take profit o lo stop loss
+                if low_i <= exit_price <= high_i:
+                    waiting_for_exit = False
+                    waiting_count = 0
+                else:
+                    # Se il prezzo non ha toccato il take profit o lo stop loss, incrementa il contatore di attesa
+                    waiting_count += 1
+                    if waiting_count >= waiting_number:
+                        # Se il contatore di attesa supera N barre, esci dalla posizione
+                        exit_price = price
+                        waiting_for_exit = False
+                        waiting_count = 0
+                        skip_exit_checks = True
         
         # 2.1 Apertura posizione
         if not position_open and signal != 0:
@@ -38,28 +57,34 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
             entry_bar = i
 
         # 2.2 Controllo uscita
-        exit_price = None
-        if position_open:
+        if position_open and not skip_exit_checks:
             # uscita per inversione di segnale
             if position_side == 1 and signal == -1:
                 exit_price = price
+                waiting_for_exit = False
             elif position_side == -1 and signal == 1:
                 exit_price = price
-            else:
+                waiting_for_exit = False
+            elif not waiting_for_exit:
                 # uscita per TP/SL
                 if position_side == 1:
-                    if high_i >= take_profit:
+                    if price >= take_profit:
                         exit_price = take_profit
-                    elif low_i <= stop_loss:
+                        waiting_for_exit = True
+                    elif price <= stop_loss:
                         exit_price = stop_loss
+                        waiting_for_exit = True
                 else:
-                    if low_i <= take_profit:
+                    if price <= take_profit:
                         exit_price = take_profit
-                    elif high_i >= stop_loss:
+                        waiting_for_exit = True
+                    elif price >= stop_loss:
                         exit_price = price
+                        waiting_for_exit = True
 
+                        
         # 2.3 Realizza PnL se serve
-        if exit_price is not None:
+        if exit_price is not None and not waiting_for_exit:
             pnl = position_size * (exit_price - entry_price) * position_side
             realized_equity += pnl
             realized_equity -= np.float32(fixed_fee) * position_size / lot_size
@@ -70,6 +95,8 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
             take_profit = np.float32(0.0)
             position_size = np.float32(0.0)
             entry_bar = np.int32(-1)
+            exit_price = None
+            waiting_for_exit = False
 
         # 2.4 Mark-to-market intrabar
         if position_open:

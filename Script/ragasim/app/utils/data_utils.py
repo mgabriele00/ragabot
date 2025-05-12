@@ -87,7 +87,7 @@ def save_results_to_csv(results: np.ndarray, strategy_conditions: list[StrategyC
         # Scrivi l'intestazione: parametri della condizione + metriche di performance
         header = [
             'ConditionIndex',
-            'rsi_entry', 'rsi_exit', 'exposure', 'tp_mult', 'sl_mult' 'bb_std', 'atr_window', 'bb_width_threshold',
+            'rsi_entry', 'rsi_exit', 'exposure', 'tp_mult', 'sl_mult' 'bb_std', 'atr_window', 'bb_width_threshold', 'waiting_number'
             'FinalEquity', 'FinalPnL', 'MaxDrawdown', 'WinRate' # Metriche
         ]
         writer.writerow(header)
@@ -99,7 +99,7 @@ def save_results_to_csv(results: np.ndarray, strategy_conditions: list[StrategyC
             row_data = [
                 i,
                 condition.rsi_entry, condition.rsi_exit, condition.exposure,
-                condition.sl_mult, condition.tp_mult, condition.bb_std, condition.atr_window, condition.bb_width_threshold,
+                condition.sl_mult, condition.tp_mult, condition.bb_std, condition.atr_window, condition.bb_width_threshold,condition.waiting_number,
                 results[i, 0], results[i, 1], results[i, 2], results[i, 3] # Equity, PnL, MD, WR
             ]
             writer.writerow(row_data)
@@ -126,6 +126,7 @@ def build_polars_table_for_year(
         "atr_window": [int(c.atr_window) for c in strategy_conditions],
         "bb_width_threshold": [float(c.bb_width_threshold) for c in strategy_conditions],
         "leverage": [int(c.leverage) for c in strategy_conditions],
+        "waiting_number": [int(c.waiting_number) for c in strategy_conditions],
         f"equity_{year}": final_equities,
         f"drawdown_{year}": drawdowns
     })
@@ -156,6 +157,6 @@ def combine_all_years_by_parameters(
         else:
             df_merged = df_merged.join(df_year, on=[
                 "rsi_entry", "rsi_exit", "exposure",
-                "tp_mult", "sl_mult", "bb_std", "atr_window", "bb_width_threshold", "leverage"
+                "tp_mult", "sl_mult", "bb_std", "atr_window", "bb_width_threshold", "leverage", "waiting_number"
             ])
     return df_merged

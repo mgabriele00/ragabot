@@ -17,6 +17,7 @@ spec = [
     ('initial_equity', float32),
     ('leverage', int32),
     ('lot_size', int32),
+    ('waiting_number', int32),
     ('start_index', int32),
 ]
 
@@ -40,19 +41,20 @@ params = {
 """
 
 params = {
-    "rsi_entry": [30],
-    "rsi_exit": [75],
-    "bb_std": [2],
+    "rsi_entry": [30, 35, 40, 45],
+    "rsi_exit": [55, 60, 65, 70, 75],
+    "bb_std": [1.5, 1.3, 1.75],
     "exposure": [0.9],
     "atr_window": [14],
-    "tp_mult": [22],
-    "sl_mult": [14],
-    "bb_width_threshold": [0.001],
-    "fixed_fee": [2.1],
-    "initial_equity": [1000],
+    "tp_mult": [0.5, 0.1, 0.3],
+    "sl_mult": [2, 3, 6, 7, 8],
+    "bb_width_threshold": [0.001, 0.002, 0.003],
     "leverage": [30],
     "lot_size": [100000],
-    "start_index": [14]
+    "start_index": [14],
+    "fixed_fee": [2.1],
+    "initial_equity": [1000],
+    "waiting_number": [1, 3, 5, 7, 10, 15, 18, 20],
 }
 
 param_values_ordered = [
@@ -68,7 +70,8 @@ param_values_ordered = [
     params["initial_equity"],
     params["leverage"],
     params["lot_size"],
-    params["start_index"]
+    params["waiting_number"],
+    params["start_index"],
 ]
 
 @jitclass(spec)
@@ -86,7 +89,8 @@ class StrategyCondition:
                  initial_equity: float,
                  leverage: int,
                  lot_size: int,
-                 start_index: int = 14
+                 waiting_number: int,
+                 start_index: int = 14,
                  ):
         # Conversione a float32 per Numba
         self.rsi_entry  = np.float32(rsi_entry)
@@ -101,6 +105,7 @@ class StrategyCondition:
         self.initial_equity = np.float32(initial_equity)
         self.leverage = np.int32(leverage)
         self.lot_size = np.int32(lot_size)
+        self.waiting_number = np.int32(waiting_number)
         self.start_index = np.int32(start_index)
 
 def generate_conditions_to_test() -> List[StrategyCondition]:
