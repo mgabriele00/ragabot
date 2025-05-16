@@ -37,7 +37,7 @@ def calculate_sigma(close: np.ndarray) -> np.ndarray:
     return sigma
 
 @njit(fastmath=True)
-def backtest(close, atr, signals, start_index, initial_equity, sl_mult, tp_mult, exposure, leverage, fixed_fee, lot_size) -> np.ndarray:
+def backtest(close, low, high,  atr, signals, start_index, initial_equity, sl_mult, tp_mult, exposure, leverage, fixed_fee, lot_size) -> np.ndarray:
     # Preallochiamo un array NumPy della dimensione corretta
     equity_curve = np.full(len(close), np.float32(0.0))
     
@@ -57,6 +57,8 @@ def backtest(close, atr, signals, start_index, initial_equity, sl_mult, tp_mult,
         prev_price = np.float32(close[i - 1])
         atr_i = np.float32(atr[i])
         signal = signals[i]
+        low_i = np.float32(low[i])
+        high_i = np.float32(high[i])
 
         # 2.1 Apertura posizione
         if not position_open and signal != 0:
@@ -80,14 +82,26 @@ def backtest(close, atr, signals, start_index, initial_equity, sl_mult, tp_mult,
                 # uscita per TP/SL
                 if position_side == 1:
                     if hit_tp(take_profit, prev_price, threshold_, sigma[i], True):
-                        exit_price = take_profit
+                        if low_i <= take_profit <= high_i:
+                            exit_price = take_profit
+                        else:
+                            exit_price = price
                     elif hit_sl(stop_loss, prev_price, threshold_, sigma[i], True):
-                        exit_price = stop_loss
+                        if low_i <= stop_loss <= high_i:
+                            exit_price = stop_loss
+                        else:
+                            exit_price = price
                 else:
                     if hit_tp(take_profit, prev_price, threshold_, sigma[i], False):
-                        exit_price = take_profit
+                        if low_i <= take_profit <= high_i:
+                            exit_price = take_profit
+                        else:
+                            exit_price = price
                     elif hit_sl(stop_loss, prev_price, threshold_, sigma[i], False):
-                        exit_price = stop_loss
+                        if low_i <= stop_loss <= high_i:
+                            exit_price = stop_loss
+                        else:
+                            exit_price = price
 
         # 2.3 Realizza PnL se serve
         if exit_price is not None:
