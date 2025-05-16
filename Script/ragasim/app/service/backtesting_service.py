@@ -57,8 +57,6 @@ def backtest(close, low, high,  atr, signals, start_index, initial_equity, sl_mu
         prev_price = np.float32(close[i - 1])
         atr_i = np.float32(atr[i])
         signal = signals[i]
-        low_i = np.float32(low[i])
-        high_i = np.float32(high[i])
 
         # 2.1 Apertura posizione
         if not position_open and signal != 0:
@@ -81,24 +79,24 @@ def backtest(close, low, high,  atr, signals, start_index, initial_equity, sl_mu
             else:
                 # uscita per TP/SL
                 if position_side == 1:
-                    if hit_tp(take_profit, prev_price, threshold_, sigma[i], True):
-                        if low_i <= take_profit <= high_i:
+                    if hit_tp(take_profit, price, threshold_, sigma[i], True):
+                        if low[i+1] <= take_profit <= high[i+1]:
                             exit_price = take_profit
                         else:
                             exit_price = price
-                    elif hit_sl(stop_loss, prev_price, threshold_, sigma[i], True):
-                        if low_i <= stop_loss <= high_i:
+                    elif hit_sl(stop_loss, price, threshold_, sigma[i], True):
+                        if low[i-1] <= stop_loss <= high[i-1]:
                             exit_price = stop_loss
                         else:
                             exit_price = price
                 else:
-                    if hit_tp(take_profit, prev_price, threshold_, sigma[i], False):
-                        if low_i <= take_profit <= high_i:
+                    if hit_tp(take_profit, price, threshold_, sigma[i], False):
+                        if low[i-1] <= take_profit <= high[i-1]:
                             exit_price = take_profit
                         else:
                             exit_price = price
-                    elif hit_sl(stop_loss, prev_price, threshold_, sigma[i], False):
-                        if low_i <= stop_loss <= high_i:
+                    elif hit_sl(stop_loss, price, threshold_, sigma[i], False):
+                        if low[i-1] <= stop_loss <= high[i-1]:
                             exit_price = stop_loss
                         else:
                             exit_price = price
