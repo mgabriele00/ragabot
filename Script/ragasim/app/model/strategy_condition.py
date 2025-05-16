@@ -37,19 +37,19 @@ params = {
 }
 """
 params = {
-    "rsi_entry": [40, 41, 42, 43, 44, 45],
-    "rsi_exit": [50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60],
-    "bb_std": [1.3, 1.4, 1.5, 1.6, 1.75],
-    "exposure": [0.6,0.7,0.8,0.9],
+    "rsi_entry": [44],
+    "rsi_exit": [55],
+    "bb_std": [1.3],
+    "exposure": [0.9],
     "atr_window": [14],
-    "tp_mult": [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
-    "sl_mult": [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6],
-    "bb_width_threshold": [0.001,0.002,0.003,0.004,0.005,0.006,0.008],
+    "tp_mult": [20],
+    "sl_mult": [0.1],
+    "bb_width_threshold": [0.003],
     "fixed_fee": [2],
     "initial_equity": [1000],
     "leverage": [30],
     "lot_size": [100000],
-    "start_index": [14]
+    "start_index": [100]
 }
 
 
