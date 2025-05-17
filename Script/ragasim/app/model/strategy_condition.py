@@ -42,7 +42,7 @@ params = {
     "bb_std": [1.3],
     "exposure": [0.9],
     "atr_window": [14],
-    "tp_mult": [20],
+    "tp_mult": [3],
     "sl_mult": [0.1],
     "bb_width_threshold": [0.003],
     "fixed_fee": [2],

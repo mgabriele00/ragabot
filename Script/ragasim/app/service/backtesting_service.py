@@ -5,7 +5,7 @@ from service.analysis_service import calculate_max_drawdown_from_initial
 @njit(fastmath=True)
 def simulate_close_numba(prev_price, sigma) -> np.ndarray:
     n_sim = 10000
-    dt = 1 / 1440
+    dt = 1
     mu = 0.0
     Z = np.random.normal(0, 1, n_sim)
     log_ret = (mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * Z
@@ -50,7 +50,17 @@ def backtest(close, low, high,  atr, signals, start_index, initial_equity, sl_mu
     position_size = np.float32(0.0)
 
     sigma = calculate_sigma(close)
-    threshold_ = 0.7
+    threshold_sl = 0.4745
+    threshold_tp = 0.4548
+    
+    tp_ingarrati = 0
+    tp_totali = 0
+    sl_ingarrati = 0
+    sl_totali = 0
+    
+    window = -1
+    max_window = 10
+    
     # 2. Loop principale
     for i in range(start_index, len(close)):
         price = np.float32(close[i])
@@ -76,30 +86,45 @@ def backtest(close, low, high,  atr, signals, start_index, initial_equity, sl_mu
                 exit_price = price
             elif position_side == -1 and signal == 1:
                 exit_price = price
+            elif window == max_window:
+                exit_price = price
+                window = 0
             else:
                 # uscita per TP/SL
                 if position_side == 1:
-                    if hit_tp(take_profit, price, threshold_, sigma[i], True):
+                    if hit_tp(take_profit, price, threshold_tp, sigma[i], True):
+                        tp_totali += 1
                         if low[i+1] <= take_profit <= high[i+1]:
                             exit_price = take_profit
+                            tp_ingarrati += 1
                         else:
-                            exit_price = price
-                    elif hit_sl(stop_loss, price, threshold_, sigma[i], True):
-                        if low[i-1] <= stop_loss <= high[i-1]:
+                            window += 1    
+
+                    elif hit_sl(stop_loss, price, threshold_sl, sigma[i], True):
+                        sl_totali += 1
+                        if low[i+1] <= stop_loss <= high[i+1]:
                             exit_price = stop_loss
+                            sl_ingarrati += 1
                         else:
-                            exit_price = price
+                            window += 1
+
                 else:
-                    if hit_tp(take_profit, price, threshold_, sigma[i], False):
-                        if low[i-1] <= take_profit <= high[i-1]:
+                    if hit_tp(take_profit, price, threshold_tp, sigma[i], False):
+                        tp_totali += 1
+                        if low[i+1] <= take_profit <= high[i+1]:
                             exit_price = take_profit
+                            tp_ingarrati += 1
                         else:
-                            exit_price = price
-                    elif hit_sl(stop_loss, price, threshold_, sigma[i], False):
-                        if low[i-1] <= stop_loss <= high[i-1]:
+                            window += 1
+
+                    elif hit_sl(stop_loss, price, threshold_sl, sigma[i], False):
+                        sl_totali += 1
+                        if low[i+1] <= stop_loss <= high[i+1]:
+                            sl_ingarrati += 1
                             exit_price = stop_loss
                         else:
-                            exit_price = price
+                            window += 1
+
 
         # 2.3 Realizza PnL se serve
         if exit_price is not None:
@@ -129,5 +154,7 @@ def backtest(close, low, high,  atr, signals, start_index, initial_equity, sl_mu
 
         # 2.6 Registra equity di fine barra
         equity_curve[i] = current_equity
+        
+        print(f"TP ingarrati: {tp_ingarrati}, TP totali: {tp_totali}, SL ingarrati: {sl_ingarrati}, SL totali: {sl_totali}")
             
     return equity_curve

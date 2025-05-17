@@ -12,7 +12,7 @@ from service.analysis_service import calculate_max_drawdown_from_initial, comput
 import polars as pl
 from datetime import datetime
 
-@njit(parallel=True, fastmath=True)
+#@njit(parallel=True, fastmath=True)
 def simulate(close:np.ndarray, low:np.ndarray, high:np.ndarray, strategy_indicators:StrategyIndicators, strategy_condition: List[StrategyCondition]):
     n_conditions = len(strategy_condition)
     
