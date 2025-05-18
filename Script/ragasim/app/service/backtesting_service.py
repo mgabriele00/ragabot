@@ -13,9 +13,12 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
     position_side = 0
     entry_price = np.float32(0.0)
     stop_loss = np.float32(0.0)
-    take_profit = np.float32(0.0)
     position_size = np.float32(0.0)
     entry_bar = np.int32(-1)
+    
+    sl_count = 0
+    perdite = np.zeros(len(close), dtype=np.float32)
+    guadagno = np.zeros(len(close), dtype=np.float32)
     
     # 2. Loop principale
     for i in range(start_index, len(close)):
@@ -24,7 +27,6 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
         signal = signals[i]
         high_i = np.float32(high[i])
         low_i = np.float32(low[i])
-
         
         # 2.1 Apertura posizione
         if not position_open and signal != 0:
@@ -34,7 +36,6 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
             position_size = (exposure * realized_equity * leverage) / entry_price
             realized_equity -= np.float32(fixed_fee) * position_size / lot_size
             stop_loss = price - signal * sl_mult * atr_i
-            take_profit = price + signal * tp_mult * atr_i
             entry_bar = i
 
         # 2.2 Controllo uscita
@@ -46,16 +47,14 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
             elif position_side == -1 and signal == 1:
                 exit_price = price
             else:
-                # uscita per TP/SL
+                # uscita per SL
                 if position_side == 1:
-                    if high_i >= take_profit:
-                        exit_price = take_profit
-                    elif low_i <= stop_loss:
-                        exit_price = stop_loss
+                    if price <= stop_loss:
+                        sl_count+=1
+                        exit_price = stop_loss 
                 else:
-                    if low_i <= take_profit:
-                        exit_price = take_profit
-                    elif high_i >= stop_loss:
+                    if price >= stop_loss:
+                        sl_count+=1
                         exit_price = stop_loss
 
         # 2.3 Realizza PnL se serve
@@ -67,9 +66,12 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
             position_side = 0
             entry_price = np.float32(0.0)
             stop_loss = np.float32(0.0)
-            take_profit = np.float32(0.0)
             position_size = np.float32(0.0)
             entry_bar = np.int32(-1)
+            if pnl < 0:
+                perdite[i] = pnl
+            else:
+                guadagno[i] = pnl
 
         # 2.4 Mark-to-market intrabar
         if position_open:
@@ -87,5 +89,18 @@ def backtest(close, high, low, atr, signals, start_index, initial_equity, sl_mul
 
         # 2.6 Registra equity di fine barra
         equity_curve[i] = current_equity
+    print("SL count: ", sl_count)
+    #array di percentuale di perdite rispetto all'equity 
+    perdite_perc = (perdite / realized_equity) * 100
+    guadagno_perc = (guadagno / realized_equity) * 100
+    print("Perdite in percentuale: ", np.mean(perdite_perc[perdite_perc != 0]))
+    print("Guadagni in percentuale: ", np.mean(guadagno_perc[guadagno_perc != 0]))
+    
+    print("Guadagno Medio: ", np.mean(guadagno[guadagno != 0]))
+    print("Perdita Media: ", np.mean(perdite[perdite != 0]))
+    n_guadagni = np.count_nonzero(guadagno)
+    n_perdite = np.count_nonzero(perdite)
+    print("Numero di perdite: ", n_perdite)
+    print("Numero di guadagni: ", n_guadagni)
             
     return equity_curve
