@@ -12,7 +12,6 @@ from service.analysis_service import calculate_max_drawdown_from_initial, comput
 import polars as pl
 from datetime import datetime
 
-#@njit(parallel=True, fastmath=True)
 def simulate(close:np.ndarray, low:np.ndarray, high:np.ndarray, strategy_indicators:StrategyIndicators, strategy_condition: List[StrategyCondition]):
     n_conditions = len(strategy_condition)
     
@@ -46,7 +45,10 @@ def simulate(close:np.ndarray, low:np.ndarray, high:np.ndarray, strategy_indicat
             condition.exposure,
             condition.leverage,
             condition.fixed_fee,
-            condition.lot_size
+            condition.lot_size,
+            condition.window,
+            condition.threshold_sl,
+            condition.alpha,
         )
         
         final_equity = equity_curve[-1]
@@ -79,12 +81,15 @@ def main(year: int):
     print("TP Mult: ", condition.tp_mult)
     print("Exposure: ", condition.exposure)
     print("Atr Window: ", condition.atr_window)
+    print("Window: ", condition.window)
+    print("Alpha: ", condition.alpha)
+    print("Threshold SL: ", condition.threshold_sl)
     print("Max dd:", np.max(max_drawdowns))
     return final_equities, condition_indices, max_drawdowns
 
 if __name__ == '__main__':
-    years = [2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024]
-    #years = [2013]
+    #years = [2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024]
+    years = [2013]
     os.makedirs("results", exist_ok=True)
 
     # Combina tutto usando la funzione esterna

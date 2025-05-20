@@ -1,44 +1,11 @@
 import numpy as np
-from numba import njit
+from numba import njit, prange
 from service.analysis_service import calculate_max_drawdown_from_initial
 
-@njit(fastmath=True)
-def simulate_close_numba(prev_price, sigma) -> np.ndarray:
-    n_sim = 10000
-    dt = 1
-    mu = 0.0
-    Z = np.random.normal(0, 1, n_sim)
-    log_ret = (mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * Z
-    return prev_price * np.exp(log_ret)
+def hit_stop_loss(close, stop_loss, isLong) -> bool:
+    return close <= stop_loss if isLong else close >= stop_loss
 
-@njit(fastmath=True)
-def hit_tp(target_price, prev_price, threshold, sigma, is_long) -> bool:
-    sim_prices = simulate_close_numba(prev_price, sigma)
-    probability = np.mean(sim_prices >= target_price) if is_long else np.mean(sim_prices <= target_price)
-    return probability >= threshold
-
-@njit(fastmath=True)
-def hit_sl(target_price, prev_price, threshold, sigma, is_long) -> bool:
-    sim_prices = simulate_close_numba(prev_price, sigma)
-    probability = np.mean(sim_prices <= target_price) if is_long else np.mean(sim_prices >= target_price)
-    return probability >= threshold
-
-@njit(fastmath=True)
-def calculate_sigma(close: np.ndarray) -> np.ndarray:
-    window_sigma = 100
-    # 1. Log return
-    log_ret = np.full_like(close, np.nan)
-    log_ret[1:] = np.log(close[1:] / close[:-1])
-
-    # 2. Rolling std su log return (window_sigma = 100)
-    sigma = np.full_like(log_ret, np.nan)
-    for i in range(window_sigma, len(log_ret)):
-        sigma[i] = np.std(log_ret[i - window_sigma:i])
-    return sigma
-
-@njit(fastmath=True)
-def backtest(close, low, high,  atr, signals, start_index, initial_equity, sl_mult, tp_mult, exposure, leverage, fixed_fee, lot_size) -> np.ndarray:
-    # Preallochiamo un array NumPy della dimensione corretta
+def backtest(close, low, high,  atr, signals, start_index, initial_equity, sl_mult, tp_mult, exposure, leverage, fixed_fee, lot_size, window, threshold, alpha) -> np.ndarray:
     equity_curve = np.full(len(close), np.float32(0.0))
     
     realized_equity = np.float32(initial_equity)
@@ -46,25 +13,18 @@ def backtest(close, low, high,  atr, signals, start_index, initial_equity, sl_mu
     position_side = 0
     entry_price = np.float32(0.0)
     stop_loss = np.float32(0.0)
-    take_profit = np.float32(0.0)
     position_size = np.float32(0.0)
-
-    sigma = calculate_sigma(close)
-    threshold_sl = 0.4745
-    threshold_tp = 0.4548
-    
-    tp_ingarrati = 0
-    tp_totali = 0
+        
     sl_ingarrati = 0
+    sl_intercettati = 0
     sl_totali = 0
     
-    window = -1
-    max_window = 10
+    count_stop_loss_arr = []
+    count_stop_loss = 0
     
     # 2. Loop principale
     for i in range(start_index, len(close)):
         price = np.float32(close[i])
-        prev_price = np.float32(close[i - 1])
         atr_i = np.float32(atr[i])
         signal = signals[i]
 
@@ -76,55 +36,32 @@ def backtest(close, low, high,  atr, signals, start_index, initial_equity, sl_mu
             position_size = (exposure * realized_equity * leverage) / entry_price
             realized_equity -= np.float32(fixed_fee) * position_size / lot_size
             stop_loss = price - signal * sl_mult * atr_i
-            take_profit = price + signal * tp_mult * atr_i
 
         # 2.2 Controllo uscita
         exit_price = None
         if position_open:
             # uscita per inversione di segnale
-            if position_side == 1 and signal == -1:
+            if hit_stop_loss(close[i], stop_loss, position_side == 1):
+                sl_intercettati += 1
+                if position_side == 1 and low[i] <=  stop_loss and stop_loss <= close[i] <= high[i]:
+                    exit_price = stop_loss
+                    sl_ingarrati += 1
+                elif position_side == -1 and high[i] >= stop_loss and stop_loss >= low[i]:
+                    exit_price = stop_loss
+                    sl_ingarrati += 1    
+                #else: exit_price = price
+            elif position_side == 1 and signal == -1:
                 exit_price = price
+                count_stop_loss = 0
             elif position_side == -1 and signal == 1:
                 exit_price = price
-            elif window == max_window:
-                exit_price = price
-                window = 0
-            else:
-                # uscita per TP/SL
-                if position_side == 1:
-                    if hit_tp(take_profit, price, threshold_tp, sigma[i], True):
-                        tp_totali += 1
-                        if low[i+1] <= take_profit <= high[i+1]:
-                            exit_price = take_profit
-                            tp_ingarrati += 1
-                        else:
-                            window += 1    
-
-                    elif hit_sl(stop_loss, price, threshold_sl, sigma[i], True):
-                        sl_totali += 1
-                        if low[i+1] <= stop_loss <= high[i+1]:
-                            exit_price = stop_loss
-                            sl_ingarrati += 1
-                        else:
-                            window += 1
-
-                else:
-                    if hit_tp(take_profit, price, threshold_tp, sigma[i], False):
-                        tp_totali += 1
-                        if low[i+1] <= take_profit <= high[i+1]:
-                            exit_price = take_profit
-                            tp_ingarrati += 1
-                        else:
-                            window += 1
-
-                    elif hit_sl(stop_loss, price, threshold_sl, sigma[i], False):
-                        sl_totali += 1
-                        if low[i+1] <= stop_loss <= high[i+1]:
-                            sl_ingarrati += 1
-                            exit_price = stop_loss
-                        else:
-                            window += 1
-
+                count_stop_loss = 0
+            else: count_stop_loss += 1
+            
+            if position_side == 1 and close[i] <= stop_loss:
+                sl_totali += 1
+            elif position_side == -1 and close[i] >= stop_loss:
+                sl_totali += 1
 
         # 2.3 Realizza PnL se serve
         if exit_price is not None:
@@ -135,8 +72,10 @@ def backtest(close, low, high,  atr, signals, start_index, initial_equity, sl_mu
             position_side = 0
             entry_price = np.float32(0.0)
             stop_loss = np.float32(0.0)
-            take_profit = np.float32(0.0)
             position_size = np.float32(0.0)
+            if count_stop_loss > 0:
+                count_stop_loss_arr.append(count_stop_loss)
+                count_stop_loss = 0
 
         # 2.4 Mark-to-market intrabar
         if position_open:
@@ -155,6 +94,17 @@ def backtest(close, low, high,  atr, signals, start_index, initial_equity, sl_mu
         # 2.6 Registra equity di fine barra
         equity_curve[i] = current_equity
         
-        print(f"TP ingarrati: {tp_ingarrati}, TP totali: {tp_totali}, SL ingarrati: {sl_ingarrati}, SL totali: {sl_totali}")
-            
+    sl_ingarrati_percent = np.float32(0.0)
+    # Se vuoi comunque una percentuale, puoi moltiplicare per 100:
+    if sl_totali > 0:
+        sl_ingarrati_percent = np.float32(sl_ingarrati) / np.float32(sl_intercettati) * 100.0
+        print("SL ingarrati perc:", sl_ingarrati_percent)
+        print("SL intercettati:", sl_intercettati)
+        print("SL totali:", sl_totali)
+    else: print("SL ingarrati: 0.0")     
+    
+    count_stop_loss_arr = np.array(count_stop_loss_arr)
+    count_stop_loss_mean = np.mean(count_stop_loss_arr) if len(count_stop_loss_arr) > 0 else 0
+    print("Count stop loss mean:", count_stop_loss_mean)  
+              
     return equity_curve

@@ -18,6 +18,9 @@ spec = [
     ('leverage', int32),
     ('lot_size', int32),
     ('start_index', int32),
+    ('window', int32),
+    ('alpha', float32),
+    ('threshold_sl', float32)
 ]
 """
 params = {
@@ -49,7 +52,10 @@ params = {
     "initial_equity": [1000],
     "leverage": [30],
     "lot_size": [100000],
-    "start_index": [100]
+    "start_index": [100],
+    "window": [500],
+    "alpha": [0.98],
+    "threshold_sl": [0.999],
 }
 
 
@@ -66,7 +72,10 @@ param_values_ordered = [
     params["initial_equity"],
     params["leverage"],
     params["lot_size"],
-    params["start_index"]
+    params["start_index"],
+    params["window"],
+    params["alpha"],
+    params["threshold_sl"]
 ]
 
 @jitclass(spec)
@@ -84,22 +93,27 @@ class StrategyCondition:
                  initial_equity: float,
                  leverage: int,
                  lot_size: int,
-                 start_index: int = 14
+                 start_index: int,      # ← SPOSTATO QUI
+                 window: int,           # ← ORA SEGUI window, alpha, threshold_sl
+                 alpha: float,
+                 threshold_sl: float
                  ):
-        # Conversione a float32 per Numba
-        self.rsi_entry  = np.float32(rsi_entry)
-        self.rsi_exit   = np.float32(rsi_exit)
-        self.exposure   = np.float32(exposure)
-        self.bb_std     = np.float32(bb_std)
-        self.atr_window = np.int32(atr_window)
-        self.tp_mult    = np.float32(tp_mult)
-        self.sl_mult    = np.float32(sl_mult)
+        self.rsi_entry   = np.float32(rsi_entry)
+        self.rsi_exit    = np.float32(rsi_exit)
+        self.exposure    = np.float32(exposure)
+        self.bb_std      = np.float32(bb_std)
+        self.atr_window  = np.int32(atr_window)
+        self.tp_mult     = np.float32(tp_mult)
+        self.sl_mult     = np.float32(sl_mult)
         self.bb_width_threshold = np.float32(bb_width_threshold)
-        self.fixed_fee = np.float32(fixed_fee)
-        self.initial_equity = np.float32(initial_equity)
-        self.leverage = np.int32(leverage)
-        self.lot_size = np.int32(lot_size)
-        self.start_index = np.int32(start_index)
+        self.fixed_fee        = np.float32(fixed_fee)
+        self.initial_equity   = np.float32(initial_equity)
+        self.leverage         = np.int32(leverage)
+        self.lot_size         = np.int32(lot_size)
+        self.start_index      = np.int32(start_index)    # ← corretto
+        self.window           = np.int32(window)
+        self.alpha            = np.float32(alpha)
+        self.threshold_sl     = np.float32(threshold_sl)
 
 def generate_conditions_to_test() -> List[StrategyCondition]:
     param_combinations = list(itertools.product(*param_values_ordered))

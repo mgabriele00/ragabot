@@ -1,0 +1,84 @@
+@njit(parallel=True)
+def hit_stop_loss(
+    close: np.ndarray,
+    i: int,
+    stop_loss: float,
+    is_long: bool,
+    threshold: float,
+    window: int,
+    alpha: float,
+    M: int,
+    NSTEPS: int,
+    lam_twist: float
+) -> bool:
+    """
+    Monte Carlo con importance sampling per stimare lo stop-loss touch in 1 minuto:
+      - μ/σ via EWMA su `window` barre con decay `alpha`
+      - multi-step intraminuto (NSTEPS)
+      - antithetic variates
+      - cambio di misura esponenziale con parametro lam_twist
+
+    Restituisce True se la stima pesata P(hit) ≥ threshold.
+    """
+    # 1) calibrazione EWMA su log-return
+    start = max(1, i - window)
+    N = i - start
+    if N < 2:
+        return False
+
+    # EWMA
+    rt0 = math.log(close[start] / close[start-1])
+    var_ewma = rt0*rt0
+    mu_sum   = rt0
+    for k in range(start+1, i):
+        rt = math.log(close[k] / close[k-1])
+        mu_sum    += rt
+        var_ewma   = alpha * var_ewma + (1.0 - alpha) * rt*rt
+
+    mu_min    = mu_sum / N
+    sigma_min = math.sqrt(var_ewma)
+
+    # 2) preparazione multi-step intraminuto
+    dt_unit = 1.0 / NSTEPS
+    drift   = (mu_min - 0.5 * sigma_min**2) * dt_unit
+    vol     = sigma_min * math.sqrt(dt_unit)
+
+    # twisted drift under importance sampling
+    drift_twist = drift + lam_twist * dt_unit * sigma_min
+
+    S0      = close[i-1]
+    half_M  = M // 2
+    sum_wI  = 0.0
+    sum_w   = 0.0
+
+    for j in prange(half_M):
+        # estrai z e -z per antithetic
+        z0 = np.random.randn()
+        for sign in (1.0, -1.0):
+            z = sign * z0
+            S = S0
+            hit = False
+            # cammino multi-step
+            for _ in range(NSTEPS):
+                zi = np.random.randn()
+                S *= math.exp(drift_twist + vol * zi)
+                if is_long:
+                    if S <= stop_loss:
+                        hit = True
+                        break
+                else:
+                    if S >= stop_loss:
+                        hit = True
+                        break
+
+            # peso di likelihood ratio
+            # weight = exp(-lam_twist * sum(z_i)*sqrt(dt_unit) - 0.5*lam_twist^2 * T)
+            # ma aprossimiamo usando solo singolo z0 e dt=1
+            w = math.exp(-lam_twist * z0 * sigma_min - 0.5 * lam_twist**2)
+            if hit:
+                sum_wI += w
+            sum_w += w
+
+    # stima non distorta
+    prob_hit = sum_wI / sum_w
+    return prob_hit >= threshold
