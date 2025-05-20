@@ -40,6 +40,7 @@ params = {
 """
 
 params = {
+<<<<<<< Updated upstream
     "rsi_entry": [35],
     "rsi_exit": [70],
     "bb_std": [2.0],
@@ -53,6 +54,22 @@ params = {
     "leverage": [30],
     "lot_size": [100000],
     "start_index": [14]
+=======
+    "rsi_entry": [40],
+    "rsi_exit": [55],
+    "bb_std": [1.3],
+    "exposure": [0.9],
+    "atr_window": [14],
+    "tp_mult": [2],
+    "sl_mult": [0.1],
+    "bb_width_threshold": [0.002],
+    "leverage": [30],
+    "lot_size": [100000],
+    "start_index": [14],
+    "fixed_fee": [2.1],
+    "initial_equity": [1000],
+    "waiting_number": [10],
+>>>>>>> Stashed changes
 }
 
 param_values_ordered = [
